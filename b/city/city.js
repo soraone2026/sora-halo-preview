@@ -62,7 +62,16 @@ const CLOTH = { "C-001": "#f4f4f0", "C-002": "#4f6f99", "C-003": "#f0eee8", "C-0
   const showCoins = () => { $("#coins").textContent = `B ${desk ? desk.coins : "–"}`; };
   showCoins();
 
-  const renderer = new THREE.WebGLRenderer({ antialias: !SMALL });
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: !SMALL }); }
+  catch (e) {   /* 瀏覽器開不了 3D（WebGL 被關掉、顯示卡不支援）：說清楚，給一個回去的按鈕，不要一直停在「城市載入中…」 */
+    console.error(e); const box = $("#loading"), act = document.querySelector(".actions"); if (act) act.style.display = "none"; box.style.pointerEvents = "auto"; box.replaceChildren();
+    const w = document.createElement("div"); w.style.cssText = "text-align:center;max-width:320px;line-height:1.6;padding:16px";
+    const t = document.createElement("b"); t.textContent = L("這個瀏覽器目前無法顯示 3D 城市。", "This browser can't show the 3D city right now.");
+    const m = document.createElement("p"); m.style.cssText = "margin:8px 0 14px;font-size:13px;opacity:.85"; m.textContent = L("WebGL 沒有開啟或顯示卡不支援。請換一個瀏覽器，或開啟瀏覽器的硬體加速後再試。", "WebGL is off or not supported. Try another browser, or turn on hardware acceleration.") + (e && e.message ? `（${e.message}）` : "");
+    const back = document.createElement("button"); back.type = "button"; back.className = "btn primary"; back.textContent = document.body.classList.contains("embed") ? L("🏠 回家", "🏠 Back home") : L("‹ 回上一頁", "‹ Go back");
+    back.addEventListener("click", () => { if (document.body.classList.contains("embed")) { try { window.parent.postMessage({ type: "sle.study.close" }, location.origin); } catch { } } else if (history.length > 1) history.back(); else location.href = "/"; });
+    w.append(t, m, back); box.append(w); return; }
   renderer.setPixelRatio(Math.min(devicePixelRatio, SMALL ? 1.4 : 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
