@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<script>window.__PLAYTEST = 1;</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- 曦環城入口 B 版預覽（離線單檔）。three.js 0.170.0 © three.js authors, MIT License，已內嵌。存檔只在開啟這個檔的瀏覽器裡（localStorage）。 -->
@@ -879,6 +880,10 @@ html.pvb #panelTab .remtri { display:none !important; }   /* B 版：開場不�
 #pvBook .pvb-sec { font-size:12px; letter-spacing:.1em; color:#8a7650; margin-top:8px; } #pvBook button { margin:4px 0 0; width:100%; }
 #pvNote small { display:block; color:#8a7a5a; font-size:12px; margin-bottom:4px; }
 #pvNote p { margin:2px 0; font-size:14px; line-height:1.55; } #pvNote .pvn-sign { text-align:right; color:#6a5a3a; font-size:13px; margin-top:4px; }
+#pvEnv { position:fixed; left:calc(env(safe-area-inset-left,0px) + 12px); top:46%; z-index:58; display:flex; align-items:center; gap:6px; width:auto; margin:0; padding:7px 11px 7px 8px; border-radius:12px; background:#fbf6ea; color:#5a4a2a; border:1px solid #e6dcc4; box-shadow:0 6px 16px rgba(40,30,10,.22); font-size:12.5px; font-weight:700; cursor:pointer; transition:transform .5s cubic-bezier(.5,0,.6,1), opacity .5s; }
+#pvEnv .pve-ic { font-size:20px; line-height:1; } #pvEnv.fly { opacity:.15; }
+#pvNote .pvn-goal { margin:8px 0 2px; padding:8px 10px; border-radius:10px; background:#f1e8d2; font-weight:700; font-size:14px; }
+#pvTri.guide { z-index:58; animation:pvhop .55s ease-in-out 2; }
 #pvNote .pvn-btns { display:flex; gap:8px; margin-top:10px; } #pvNote .pvn-btns button { margin:0; flex:1; padding:10px 8px; }
 #pvHint { position:fixed; z-index:57; pointer-events:none; transform:translate(-50%,0); background:rgba(24,20,48,.9); color:#fff; font-size:13px; padding:6px 12px; border-radius:999px; white-space:nowrap; opacity:0; transition:opacity .3s; }
 #pvHint.on { opacity:1; }
@@ -6516,7 +6521,7 @@ const MKK = "sora-mk-done";
 function mkDoneSet() { let x = null; try { x = JSON.parse(localStorage.getItem(MKK) || "null"); } catch { } return x && x.d === today() ? x : { d: today(), ids: [] }; }
 function markDone(id) { const x = mkDoneSet(); if (!x.ids.includes(id)) { x.ids.push(id); try { localStorage.setItem(MKK, JSON.stringify(x)); } catch { } } mkKey = ""; }
 const SHOP_AT = { bakery: [38.9, 19.9], market: [48.7, 20.4], conv: [56.9, 20.0], books: [30.4, 20.4], florist: [-31.1, 19.9], clothes: [-41.1, 20.4], restaurant: [-12.8, 20.2], cinema: [0.6, 20.4], gym: [14.2, 20.2], salon: [-22.3, 20.2], travel: [22.2, 20.2], stadium: [-51.6, 20.2], mall: [69.9, 20.2] };
-function markerList() { const S = state, d = today(), done = mkDoneSet().ids, tw = (S.town || {}).done || [], out = [], add = (id, x, y, z) => { if (!done.includes(id)) out.push({ id, x, y, z }); };
+function markerList() { const S = state, d = today(), done = mkDoneSet().ids, tw = (S.town || {}).done || [], out = [], add = (id, x, y, z, off) => { if (!done.includes(id) && !off) out.push({ id, x, y, z }); else if (PVB) out.push({ id, x, y, z, off: 1 }); };
   if (visiting) return out;
   if (tw.includes("park")) { add("park", -25, 3.2, 10); if (fairDay()) add("fair", -27.4, 3.4, 13.6); }
   if (tw.includes("market")) add("fmkt", 74, 4.4, 8.6);
@@ -6524,7 +6529,7 @@ function markerList() { const S = state, d = today(), done = mkDoneSet().ids, tw
   if (tw.includes("bookshop")) add("obook", -64, 7.6, 10.4);
   for (const [id, k] of Object.entries(SIX_KEY_OF)) if (tw.includes(id)) { const [x, y, z] = SIX_POS[k]; add(k, x, y, z); }   // FIN-U104
   if (WORLD.on) add("bwall", -19.4, 3.3, 14.5);
-  if (clawPlaysToday(S, d) === 0) add("claw", 59.6, 3.2, 19.25);   // FIN-U93：今天的免費一次還沒玩
+  if (clawPlaysToday(S, d) === 0 || PVB) add("claw", 59.6, 3.2, 19.25, clawPlaysToday(S, d) > 0);   // FIN-U93：今天的免費一次還沒玩
   const hp = happeningOf(S, d); if (hp && !hp.done && !["rainbow", "balloon", "kite"].includes(hp.id)) { const at = HAPPENINGS[hp.id].at; add("happen", at[0], 2.6, at[1]); }
   const st = ((S.market || {}).stamps) || {};
   for (const [k, [x, z]] of Object.entries(SHOP_AT)) { const P = PLACES[k], first = (st[k] || {}).first; if (!P || !first || (Date.parse(d) - Date.parse(first)) / 86400000 > 14) continue; const a = placeAccess(S, k); if (a && a.enter) add(k, x, 4.2, z + 0.6); }
@@ -7441,7 +7446,7 @@ function openGrove(pay) { const en = LANG === "en", d = today();
 // FIN-U181（熊：來做過場）：Astralis 星門站——搭捷運去奧蕾莉亞城區，或穿過星門去曦環城
 /* ===== 曦環城入口 B 版預覽（本機）：便箋 → 小鎮車站修燈 → 奧蕾莉亞或繼續存錢 ===== */
 function pvbS() { return (state.pv_b ||= { note: null, job: null }); }
-function pvNote(auto) { const en = LANG === "en", S = pvbS(), nm = (state.avatar && state.avatar.name) || "";
+function pvNote(auto) { const en = LANG === "en", S = pvbS(), nm = (state.avatar && state.avatar.name) || "", onWay = S.note === "go" || S.job === "accepted";
   document.getElementById("pvNote")?.remove(); const n = document.createElement("div"); n.id = "pvNote";
   n.innerHTML = `<div class="pvn-paper"><svg class="pvn-pic" viewBox="0 0 300 74" aria-hidden="true"><rect width="300" height="74" rx="10" fill="#1c2244"/><rect x="0" y="58" width="300" height="16" fill="#2a3058"/><rect x="0" y="56" width="300" height="3" fill="#e8d06a" opacity=".7"/>
       <rect x="62" y="10" width="176" height="36" rx="6" fill="#10142e" stroke="#4a5288" stroke-width="2"/><text x="150" y="35" text-anchor="middle" font-size="20" font-weight="700" fill="#fff3c4" font-family="sans-serif"><tspan>曦</tspan><tspan class="pvn-flk" fill="#3a3f60">環</tspan><tspan>城</tspan></text>
@@ -7449,11 +7454,55 @@ function pvNote(auto) { const en = LANG === "en", S = pvbS(), nm = (state.avatar
     <p><b>${en ? `${esc(nm)}, welcome to the One-Coin Universe.` : `${esc(nm)}，歡迎來到一元宇宙。`}</b></p>
     <p>${en ? "A meteor fell on the town. Last night, one character on the Star Station's name light went dark too." : "一顆流星落在小鎮上。昨晚，星站的站名燈也暗了一個字。"}</p>
     <p>${en ? "You're the ruin restorer who just moved in. The station attendant left a note: “Could you come and take a look at the platform when you have a moment?”" : "你是新搬來的遺跡修復師。站務員留了張字條：「有空來月台幫我看一眼嗎？」"}</p>
-    <div class="pvn-btns"><button type="button" class="pvn-go">${en ? "Find the station in town" : "去小鎮找車站"}</button><button type="button" class="ghost pvn-later">${en ? "Look around my room first" : "先看看我的房間"}</button></div></div>`;
+    ${onWay ? `<div class="pvn-goal">📍 ${en ? "Check the name light at the Star Station" : "到星站查看站名燈"}</div>` : ""}
+    <div class="pvn-btns">${onWay ? `<button type="button" class="pvn-guide">${pvGuideOn() ? (en ? "Stop guiding" : "關閉指路") : (en ? "Show me the way" : "帶我去")}</button>` : `<button type="button" class="pvn-go">${en ? "Go to the station" : "去車站看看"}</button>`}<button type="button" class="ghost pvn-later">${auto ? (en ? "Look around my room first" : "先逛房間") : (en ? "Put it away" : "收起")}</button></div></div>`;
   document.body.appendChild(n); requestAnimationFrame(() => requestAnimationFrame(() => n.classList.add("on")));
   if (auto) { S.note = "open"; if (!annRead().includes("A-guide")) annRead().push("A-guide"); persist(); }   /* 完整的遊戲說明留在 🔔 裡 */
-  n.querySelector(".pvn-go").onclick = () => { S.note = "go"; persist(); pvNoteClose(); pvGoStation(); };
-  n.querySelector(".pvn-later").onclick = () => { S.note = "stored"; persist(); pvNoteClose(); annBadge(); toast(en ? "📮 The attendant's note is in the 🔔 bell — open it whenever you're ready." : "📮 站務員的字條收進 🔔 鈴鐺了，想去的時候再打開。", null, null, 4200); }; }
+  const go = n.querySelector(".pvn-go"); if (go) go.onclick = () => { S.note = "go"; persist(); pvNoteClose(); pvGoStation(); };
+  const gd = n.querySelector(".pvn-guide"); if (gd) gd.onclick = () => { pvNoteClose(); if (pvGuideOn()) pvGuideOff(); else pvGuide(); };
+  n.querySelector(".pvn-later").onclick = () => { if (S.note === "open") S.note = "stored"; persist(); pvNoteClose(); setTimeout(pvEnvSync, 320); }; }   /* 收起：縮成側邊的「站務員的信」 */
+/* 開場：捏完臉，她站定 → 鏡頭從正面偏側約 30 度看她（避開燈架、身旁留點空間）→ 停一秒 → 出現委託 */
+function pvIntro() { let n = 0; const wait = () => { let still = true; try { still = !scene3d.avStill || scene3d.avStill(); } catch { }
+    if (!still && ++n < 40) { setTimeout(wait, 300); return; } window.__pvIntroN = n;
+    let ok = false; try { ok = scene3d.pvIntroCam ? scene3d.pvIntroCam() : false; } catch (e) { window.__pvCamErr = String(e && e.stack || e).slice(0, 300); } if (!ok) { try { scene3d.lookAtMe && scene3d.lookAtMe(); } catch { } }
+    setTimeout(() => { if (!document.querySelector(".annov, .safeov") && sheet.classList.contains("hidden")) pvNote(true); else setTimeout(() => pvNote(true), 1500); }, 2200); };   /* 鏡頭移過去約 1.2 秒，再停 1 秒 */
+  wait(); }
+/* 進行中的委託：側邊的小信封「站務員的信」；點一下打開原信。修好燈後飛進 🔔 鈴鐺（之後的任務也一樣） */
+window.__pvDbg = () => { try { return JSON.stringify({ mode: scene3d.avMode(), fl: scene3d.avFloorNow(), pos: scene3d.avPos(), walk: window.__pvWalkRes, camErr: window.__pvCamErr }); } catch (e) { return String(e); } };
+function pvEnvSync() { if (!PVB) return; const S = pvbS(); let e = document.getElementById("pvEnv"); if (!pvEnvSync.att) { try { pvEnvSync.att = scene3d.pvAtt(); } catch { } }   /* 站務員：小鎮建好後放到站牌旁 */
+  if (S.job === "done") { if (S.env !== "filed" && !document.querySelector("#pvLamp, #pvBook")) pvEnvFile(); return; }
+  const show = S.note && S.note !== "open" && !document.querySelector("#pvNote, #pvLamp, #pvBook, #intro") && !window.__no3d;
+  if (!show) { if (e) e.remove(); return; }
+  if (!e) { const en = LANG === "en"; e = document.createElement("button"); e.type = "button"; e.id = "pvEnv"; e.innerHTML = `<span class="pve-ic">✉️</span>${en ? "Attendant's letter" : "站務員的信"}`; e.onclick = () => { e.remove(); pvNote(false); }; document.body.appendChild(e); } }
+function pvEnvFile() { const S = pvbS(); if (S.env === "filed") return; S.env = "filed"; if (!annRead().includes("PV-note")) annRead().push("PV-note"); persist(); pvGuideOff();
+  const en = LANG === "en"; let e = document.getElementById("pvEnv"); if (!e) { e = document.createElement("button"); e.type = "button"; e.id = "pvEnv"; e.innerHTML = `<span class="pve-ic">✉️</span>${en ? "Attendant's letter" : "站務員的信"}`; document.body.appendChild(e); }
+  const b = document.getElementById("annBub"), r0 = e.getBoundingClientRect(), r1 = b ? b.getBoundingClientRect() : { left: 20, top: 20, width: 0, height: 0 };
+  requestAnimationFrame(() => { e.style.transform = `translate(${(r1.left + r1.width / 2 - r0.left - r0.width / 2).toFixed(0)}px, ${(r1.top + r1.height / 2 - r0.top - r0.height / 2).toFixed(0)}px) scale(.3)`; e.classList.add("fly"); });
+  setTimeout(() => { e.remove(); annBadge(); if (b) { b.animate([{ transform: "scale(1)" }, { transform: "scale(1.25)" }, { transform: "scale(1)" }], { duration: 420 }); } }, 560); }
+setInterval(() => { try { pvEnvSync(); pvNearTips(); } catch { } }, 800);
+/* 指路：按〔帶我去〕才出現——黃三角在站牌旁輕跳兩下再停住；到站或關閉指路就消失 */
+let pvGuideT = 0; const pvGuideOn = () => !!pvGuideT;
+function pvGuide() { pvGuideOff(); try { showFloor("ext"); } catch { } try { scene3d.lookAt("station"); } catch { }
+  const t = document.createElement("div"); t.id = "pvTri"; t.className = "guide"; t.style.display = "none"; document.body.appendChild(t);
+  const t0 = performance.now(); pvGuideT = setInterval(() => { const S = pvbS(); let p = null; try { p = scene3d.avPos(); } catch { }
+    if (S.job === "done" || S.job === "accepted" || (p && p[0] === "ext" && Math.hypot(p[1] + 21.0, p[2] - 17.6) < 2.5)) { pvGuideOff(); return; }   /* 到站就收起 */
+    if (performance.now() - t0 < 1100) return; const xy = scene3d.screenOf ? scene3d.screenOf("station") : null; if (!xy) { t.style.display = "none"; return; }
+    t.style.display = ""; t.style.left = xy[0] + "px"; t.style.top = (xy[1] + 2) + "px"; }, 100); }
+function pvGuideOff() { if (pvGuideT) clearInterval(pvGuideT); pvGuideT = 0; document.querySelector("#pvTri.guide")?.remove(); }
+/* 到站：站務員開口「站名少了一個字，幫我看看？」→ 她馬上回「我去看看。」（文字和語音同時）→ 直接修燈 */
+function pvAttTalk() { const en = LANG === "en", S = pvbS(); if (pvAttTalk.busy) return; try { scene3d.pvAtt(); } catch { } pvAttTalk.busy = 1; pvGuideOff(); document.getElementById("pvHint")?.remove();
+  try { window.__herPre && window.__herPre("I'll take a look."); } catch { }
+  let went = false; const go = () => { if (went) return; went = true; pvAttTalk.busy = 0;
+    try { scene3d.sayNow(en ? "I'll take a look." : "我去看看。", "I'll take a look."); } catch { }
+    if (S.job !== "done") { S.job = "accepted"; persist(); }
+    setTimeout(() => pvLamp({ P: S, back: () => pvBook(true), payText: (b) => en ? `Lamp repair +2 B | You have ${b} B` : `修燈工錢 +2 B｜目前持有 ${b} B` }), 1300); };   /* 她說完這句（約一秒）就進到修燈 */
+  let ok = false; try { const t0 = performance.now(); ok = scene3d.pvAttSay("The station name is missing a character. Could you take a look?", en ? "" : "站名少了一個字，幫我看看？", () => setTimeout(go, Math.max(200, 2400 - (performance.now() - t0)))); }   /* 至少留 2.4 秒讀完 */ catch { }
+  setTimeout(go, ok ? 4600 : 2600); }   /* 沒有語音：留 2.6 秒讓玩家讀完站務員的話 */
+/* 店家、鄰居的提示：第一次走近時才出現（開場委託完成之後） */
+function pvNearTips() { if (!PVB || window.__firstRun() || floorNow !== "ext" || window.__uiBusy()) return; let p = null; try { p = scene3d.avPos(); } catch { } if (!p || p[0] !== "ext") return;
+  const P = state.profile, seen = (P.tips_seen ||= []), en = LANG === "en", x = p[1], z = p[2];
+  if (!seen.includes("pvShop") && Object.values(SHOP_AT).some(([sx, sz]) => Math.hypot(x - sx, z - sz) < 4.5)) { seen.push("pvShop"); persist(); toast(en ? "🛍 Tap a shop to go in and look around." : "🛍 點店家可以進去逛逛。", null, null, 4200); return; }
+  if (!seen.includes("pvNb") && Math.hypot(x + 8.6, z - 9.95) < 4) { seen.push("pvNb"); persist(); toast(en ? "👋 Tap a neighbour to chat." : "👋 點鄰居可以聊天。", null, null, 4200); } }
 function pvNoteClose() { const n = document.getElementById("pvNote"); if (!n) return; n.classList.remove("on"); setTimeout(() => n.remove(), 300); }
 function pvHint(xy, text) { document.getElementById("pvHint")?.remove(); document.getElementById("pvTri")?.remove();
   const h = document.createElement("div"); h.id = "pvHint"; h.textContent = text; h.style.left = xy[0] + "px"; h.style.top = (xy[1] + 22) + "px"; document.body.appendChild(h);
@@ -7465,16 +7514,16 @@ function pvPlace(text) { let p = document.getElementById("pvPlace"); if (!p) { p
 function pvGoStation() { const en = LANG === "en"; sheet.classList.add("hidden"); document.querySelector(".annov")?.remove();
   if (window.__no3d) { pvStationJob(); return; }   /* 沒有 3D：直接看委託 */
   const start = () => { if (document.querySelector(".safeov")) { setTimeout(start, 700); return; }   // 安全說明（在便箋之後）先看完
-    let res = "no"; try { res = scene3d.pvWalk ? scene3d.pvWalk() : "no"; } catch { }
+    let res = "no"; try { res = scene3d.pvWalk ? scene3d.pvWalk() : "no"; } catch (e) { res = "err:" + e.message; } window.__pvWalkRes = res;
     if (res !== "ok") { pvGoStationCam(); return; }
     const seen = {}; let n = 0; const tick = () => { if (pvbS().job === "done" || ++n > 2000) return; let p = null; try { p = scene3d.avPos(); } catch { } if (!p) { setTimeout(tick, 400); return; }
       const [f, x, z] = p; if (f === "ext" && floorNow !== "ext") { try { showFloor("ext"); } catch { } }
-      if (f === "ext" && !seen.home) { seen.home = 1; pvPlace(en ? "📍 Your home" : "📍 你的家"); }
-      if (f === "ext" && x < -5.5 && !seen.rose) { seen.rose = 1; pvPlace(en ? "🏡 Mrs. Rose's house" : "🏡 Rose 阿姨家");
-        const talk = () => { if (window.__uiBusy()) { setTimeout(talk, 600); return; } try { scene3d.pvRose("Off to the station? I heard the arrival light is broken again.", "要去車站嗎？聽說到站燈又壞了。"); } catch { }
+      if (f === "ext" && !seen.home) { seen.home = 1; pvPlace(en ? "📍 Your home" : "📍 你的家"); toast(en ? "Tap the ground to move — head for the station sign." : "點地面移動，往站牌走就到車站。", null, null, 4600); }
+      if (f === "ext" && x < -5.5 && !seen.rose) { seen.rose = 1; pvPlace(en ? "🏡 Mrs. Rose's house" : "🏡 Rose 阿姨家"); }   /* 第一次趕去修燈：阿姨先不自動搭話（玩家點她還是可以聊） */
+      if (false) { const talk = () => { if (window.__uiBusy()) { setTimeout(talk, 600); return; } try { scene3d.pvRose("Off to the station? I heard the arrival light is broken again.", "要去車站嗎？聽說到站燈又壞了。"); } catch { }
           setTimeout(() => { try { scene3d.sayMe(en ? "I'm a ruin restorer. I'll take a look." : "我是遺跡修復師，去看看。", 3.6, false, "I'm a ruin restorer. I'll take a look."); window.__pvReply = "said"; } catch (e) { window.__pvReply = "err:" + e.message; } }, 2900); }; setTimeout(talk, 300); }
       if (f === "ext" && x < -16 && !seen.st) { seen.st = 1; pvPlace(en ? "🚉 Astralis station" : "🚉 Astralis 星門站"); }
-      if (f === "ext" && Math.hypot(x + 21.0, z - 17.6) < 0.9 && !seen.arrive) { seen.arrive = 1; try { scene3d.pvSlow(); } catch { } try { scene3d.lookAt("station"); } catch { } setTimeout(() => { let tries = 0; const show = () => { const xy = scene3d.screenOf ? scene3d.screenOf("station") : null; if (!xy) { if (++tries < 30) { if (tries % 4 === 0) { try { scene3d.lookAt("station"); } catch { } } setTimeout(show, 500); } else pvPlace(en ? "🚉 Tap the station sign" : "🚉 點一下站牌"); return; } pvHint(xy, en ? "🚉 Tap the station sign" : "🚉 點一下站牌"); }; show(); }, 1400); return; }   /* 到站：鏡頭轉向站牌，再請玩家點一下 */
+      if (f === "ext" && Math.hypot(x + 21.0, z - 17.6) < 0.9 && !seen.arrive) { seen.arrive = 1; try { scene3d.pvSlow(); } catch { } try { scene3d.lookAt("station"); } catch { } setTimeout(pvAttTalk, 1300); return; }   /* 到站：鏡頭轉向站牌，站務員開口 */
       setTimeout(tick, 300); }; tick(); };
   start(); }
 function pvGoStationCam() { const en = LANG === "en";   /* 走不過去時（例如她正在別的地方）：鏡頭直接到車站 */
@@ -7503,8 +7552,8 @@ function pvBook(after) { const en = LANG === "en", S = pvbS(), nm = (state.avata
     <button type="button" class="pvb-close">${en ? "Close" : "關閉"}</button>`}</div>`;
   document.body.appendChild(o); requestAnimationFrame(() => o.classList.add("on"));
   if (!after) { o.querySelector(".pvb-close").onclick = () => o.remove(); return; }
-  o.querySelector(".pvb-ride").onclick = () => { o.remove(); openCity(); };
-  o.querySelector(".pvb-keep").onclick = () => { o.remove(); pvStationAfter(); }; }
+  o.querySelector(".pvb-ride").onclick = () => { o.remove(); pvEnvFile(); openCity(); };
+  o.querySelector(".pvb-keep").onclick = () => { o.remove(); pvEnvFile(); pvStationAfter(); }; }
 function pvStationAfter() { const en = LANG === "en", have = state.avatar.finance.bcoins;
   openSheet("🚉 " + (en ? "Astralis station" : "Astralis 星門站"), `<div class="pvtk"><b>💡 ${en ? "The platform light is on" : "月台的站名燈亮了"}</b><span>${en ? `You have ${have} B` : `目前持有 ${have} B`}</span></div>
     <div class="pvsay on"><small>${en ? "Station attendant" : "站務員"}</small>${en ? `With ${have} B you can take the metro into town.` : `有了 ${have} B，可以搭捷運進城了。`}</div>
@@ -7532,7 +7581,7 @@ if (PVB) setTimeout(() => { if (document.getElementById("pvPill")) return; const
     try { localStorage.clear(); } catch { } location.reload(); };
   if (/[?&]dbg/.test(location.search)) window.__pvb = () => JSON.stringify({ b: state.avatar.finance.bcoins, s: state.pv_b || null, name: (state.avatar || {}).name, setup: !!state.profile.setup_done, look: !!(state.avatar.appearance || {}).done, ores: (state.ores || []).length, city: state.pv_city || null }); }, 900);
 function openStation() { const en = LANG === "en"; try { tutMark("station"); } catch { }
-  if (PVB && pvbS().job !== "done") return pvStationJob();   /* B 版：修燈之前，車站就是這件委託 */
+  if (PVB && pvbS().job !== "done") return window.__no3d ? pvStationJob() : pvAttTalk();   /* B 版：修燈之前，點站牌（或站務員）就是這件委託 */
   openSheet("🚉 " + (en ? "Astralis station" : "Astralis 星門站"), `<p class="note">${en ? "Where to?" : "要去哪裡？"}</p><div class="world">
     <div class="zone go" data-st="city" role="button" tabindex="0" style="background:linear-gradient(135deg,#9fb2d8,#3e4f7a)"><b>🌆 ${en ? "Aurelia city" : "奧蕾莉亞城區"}</b><small>🚇 ${en ? "By metro · 3 B" : "搭捷運 · 3 B"}</small></div>
     <div class="zone go" data-st="halo" role="button" tabindex="0" style="background:linear-gradient(135deg,#2a2550,#7c5ab8)"><b>🛰 ${en ? "Xi Halo" : "曦環城"}</b><small>🌀 ${en ? "Through the star gate" : "穿過星門"} · ${haloPaid(state, today()) ? (en ? "ticket bought" : "今天已買票") : `${HALO.ticket} B`}</small></div>${stillOpen(state) ? `
@@ -7624,6 +7673,7 @@ function openHalo(pay) {   // FIN-U179 第二座星際城市（在網站版）�
   try { statHit("halo"); } catch { } studyOverlay("/city2?from=home" + withNikoQ()); if (nikoTrip()) toast(en ? "🧑‍🔬 It's the weekend — Niko is coming with you." : "🧑‍🔬 週末，Niko 跟你一起去。");
 }
 function openCity() { try { statHit("city"); } catch { }
+  if (PVB && window.__PLAYTEST) { firstTip("city"); return studyOverlay("city/index.html?from=home"); }   /* 公開試玩版（GitHub Pages）：城區是一起放上去的靜態檔，伺服器的部分由 city/playtest-api.js 在瀏覽器裡代答 */
   if (PVB && !IN_SLE) return toast(LANG === "en" ? "This public preview doesn't include Aurelia's city district yet — that part runs on the local preview only." : "這個公開試玩版還沒有奧蕾莉亞城區（城區只在本機預覽裡）。", null, null, 5200);
   firstTip("city");   // FIN-U41（熊）：從屋外走到小鎮站，搭捷運去城市（城市在網站版）
   if (IN_SLE) return studyOverlay("/planet/english/city?from=home");   // 從家門口出發：搭 Astralis 線（星門線），和書房那邊的 A 線看到不一樣的景
@@ -7748,6 +7798,7 @@ function bedSaying() {
 }
 setTimeout(function bedFirst() { if (document.getElementById("intro")) return setTimeout(bedFirst, 1500); if (floorNow === "bed") bedSaying(); }, 3000);
 function showFloor(n) { if (n === "2F") { try { openStudy(); } catch (e) { console.warn(e); } return; }   /* FIN-U243：2F＝學習書房 */
+  if (n !== floorNow) { try { scene3d && scene3d.dropMine && scene3d.dropMine(); } catch { } }
   if (n !== floorNow) statMark("floor:" + n); if (n === "ext" && state && state.profile && !state.profile.tut_out) { state.profile.tut_out = true; }
   firstTip(n);
   if (n === "bed") setTimeout(bedSaying, 900);
@@ -8026,12 +8077,11 @@ function annList(d = today()) {
       b: [`<p>${h}${zhW}！</p><p>節日那天，<br>鎮上會有特別的小訪客，<br>商店裡也會出現只有那天才有的東西。</p><h4>日期</h4><p>${md(dd)} 00:00 ～ 23:59（當地時間）</p><p>記得那天回來看看！</p>`,
         `<p>${HOLI_EN[h] || h} ${enW}!</p><p>On the day,<br>a special little visitor comes to town,<br>and the shop has things you can only find then.</p><h4>Date</h4><p>${mdE(dd)}, 00:00–23:59 (local time)</p><p>Come back and see!</p>`] }); }
   for (const e of ANN_EVENTS) { const k = Math.round((Date.parse(e.date) - Date.parse(d)) / 864e5); if (k >= 0 && k <= 5) out.push({ id: `E-${e.date}`, date: d, ev: e.date, art: e.art || "guide", t: e.t, sum: e.sum || e.t, b: e.b }); }
-  if (PVB) { const S = pvbS(); if (S.note && S.job !== "done") { const nm = (state.avatar || {}).name || "";
-      out.push({ id: "PV-note", date: d, art: "guide", pvgo: true, t: ["📮 站務員的字條・去小鎮找車站", "📮 The attendant's note · find the station in town"], sum: ["星站的站名燈暗了一個字。", "A character on the Star Station's name light went dark."],
-        b: [`<p><b>${esc(nm)}，歡迎來到一元宇宙。</b></p><p>一顆流星落在小鎮上。昨晚，星站的站名燈也暗了一個字。</p><p>你是新搬來的遺跡修復師。站務員留了張字條：「有空來月台幫我看一眼嗎？」</p>`,
-          `<p><b>${esc(nm)}, welcome to the One-Coin Universe.</b></p><p>A meteor fell on the town. Last night, one character on the Star Station's name light went dark too.</p><p>You're the ruin restorer who just moved in. The station attendant left a note: “Could you come and take a look at the platform when you have a moment?”</p>`] }); } }
+  if (PVB) { const S = pvbS(); if (S.job === "done" && S.env === "filed") { const nm = (state.avatar || {}).name || "";
+      out.push({ id: "PV-note", date: d, art: "guide", t: ["📮 站務員的信（已完成）", "📮 The attendant's letter (done)"], sum: ["星站的站名燈暗了一個字。", "A character on the Star Station's name light went dark."],
+        b: [`<p><b>${esc(nm)}，歡迎來到一元宇宙。</b></p><p>一顆流星落在小鎮上。昨晚，星站的站名燈也暗了一個字。</p><p>你是新搬來的遺跡修復師。站務員留了張字條：「有空來月台幫我看一眼嗎？」</p><p>✓ 站名燈修好了，工錢 2 B。</p>`,
+          `<p><b>${esc(nm)}, welcome to the One-Coin Universe.</b></p><p>A meteor fell on the town. Last night, one character on the Star Station's name light went dark too.</p><p>You're the ruin restorer who just moved in. The station attendant left a note: “Could you come and take a look at the platform when you have a moment?”</p><p>✓ The name light is fixed. Pay: 2 B.</p>`] }); } }
   const so = out.sort((a, b) => (b.ev ? 1 : 0) - (a.ev ? 1 : 0) || (a.guide ? 1 : 0) - (b.guide ? 1 : 0) || String(b.date).localeCompare(String(a.date)));
-  const pi = so.findIndex(x => x.id === "PV-note"); if (pi > 0) so.unshift(so.splice(pi, 1)[0]);   /* B 版：站務員的字條置頂 */
   return so;
 }
 // 公告的插圖：遊戲自己畫的（SVG，16:7），不放外面的照片
@@ -8087,7 +8137,7 @@ function annFirstCheck() {   // 新玩家第一次登入：自動打開遊戲說
   if (document.getElementById("intro") || document.getElementById("bday") || !sheet.classList.contains("hidden") || document.body.classList.contains("studying") || !document.getElementById("setup").classList.contains("hidden")) { setTimeout(annFirstCheck, 3000); return; }
   if (PVB) { if (document.querySelector(".annov")) { setTimeout(annFirstCheck, 700); return; }   /* B 版：捏完臉在二樓臥室——立刻跳出開場公告，公告本身就是第一個邀請（去小鎮找車站／先看看我的房間） */
     if (floorNow !== "bed") { try { showFloor("bed"); } catch { } }
-    try { scene3d.lookAtMe && scene3d.lookAtMe(); } catch { } pvNote(true); return; }
+    pvIntro(); return; }
   openAnn("A-guide"); }
 setTimeout(annFirstCheck, PVB ? 1500 : 6500); setInterval(annBadge, 60000);
 // FIN-U218 跨年（FIN-U219 改成 2026/12/15～2027/1/31）：打開遊戲收到 2027 閃燈髮箍（男款、女款都給），之後在快捷選單「🎆 髮箍」換款式、換燈色
@@ -8177,7 +8227,7 @@ function tutSkip() { state.profile.tut = TUT.length; persist(); }
     const res = scene3d.goSpot ? scene3d.goSpot(k) : null, wait = res === "ok" ? 2200 : 200;
     setTimeout(() => { if (k === "rose") openTalk("Rose"); else if (k === "plot") { const i = state.garden.plots.findIndex(q => !q); plotTap(i < 0 ? 0 : i); } else if (k === "pouch") claimDrop(); }, wait); };
   const tick = () => { requestAnimationFrame(tick); try { body(); } catch { } };   // 載入中有些東西還沒準備好：這一格先跳過
-  const body = () => { if (PVB && pvbS().job !== "done") { g.classList.remove("on"); return; }
+  const body = () => { if (PVB) { g.classList.remove("on"); return; }   /* B 版：不自動出現指路的黃三角（指向記帳那個也撤掉）；要指路按信裡的〔帶我去〕 */
     if (!state.profile.tut_v2) { const o = state.profile.tut || 0; state.profile.tut_v2 = 1; state.profile.tut = o >= 4 ? 7 : o >= 3 ? 6 : o >= 1 ? o + 2 : 0; }   // FIN-U205：前面多了三步，舊存檔的進度往後挪
     let st = state.profile.tut || 0;
     while (st < TUT.length && TUT[st].done()) st++;
@@ -8229,7 +8279,7 @@ const FIRST_TIPS = {
   dex: ["💎 Extra gems can be traded for B here. Gems also protect your budget streak.", "💎 多的寶石可以在這裡換 B 幣；寶石也會守護你的守住上限天數。"],
   city: ["🚉 The city: tap the ground to walk, gems sparkle on the ground, the library has quizzes.", "🚉 城市：點地面走路，地上會掉寶石，圖書館可以答題。"],
 };
-function firstTip(k) { try { const P = state.profile; if (P.tips_off || visiting) return; P.tips_seen ||= []; if (P.tips_seen.includes(k) || !FIRST_TIPS[k]) return; P.tips_seen.push(k); persist();
+function firstTip(k) { try { const P = state.profile; if (P.tips_off || visiting) return; if (PVB && k === "ext") return;   /* B 版：小鎮的店家、鄰居提示改成走近時才出現 */ P.tips_seen ||= []; if (P.tips_seen.includes(k) || !FIRST_TIPS[k]) return; P.tips_seen.push(k); persist();
   setTimeout(() => toast("💡 " + FIRST_TIPS[k][LANG === "en" ? 0 : 1]), 900); } catch (e) { } }
 // FIN-U62（熊）：營業時間——麵包店 7:00–19:00、超市 8:00–21:00、咖啡廳 7:00–20:00、便利商店 24 小時；書店、花店、服飾店 10:00–20:00
 const SHOP_HOURS = { bakery: [7, 19], market: [8, 21], cafe: [7, 20], books: [10, 20], florist: [10, 20], clothes: [10, 20], restaurant: [11, 22], cinema: [10, 24], gym: [6, 23], salon: [10, 20], travel: [9, 19], stadium: [9, 22], mall: [11, 21] };
@@ -8328,7 +8378,7 @@ const QUOTES = [
 const quotePick = () => QUOTES[Math.floor(Math.random() * QUOTES.length)];
 function quoteOfDay(d) { let h = 7; for (const ch of String(d)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return QUOTES[h % QUOTES.length]; }
 setTimeout(() => { try { const tw = state.town || {}, miss = (tw.done || []).find(id => !(tw.posterSeen || []).includes(id)); if (miss && !document.querySelector(".posterov, .fieldov")) showPoster(miss, true); } catch (e) { console.warn(e); } }, 14000);   // FIN-U82：以前修好的區也補一張海報
-setTimeout(function dayLine() { try { const d = today(), k = "sora-quote-day"; if (localStorage.getItem(k) === d) return; if (!sheet.classList.contains("hidden") || document.querySelector(".say") || document.getElementById("intro")) { setTimeout(dayLine, 20000); return; }   /* FIN-U195：有面板、有人在說話時先不出現 */ localStorage.setItem(k, d); const q = quoteOfDay(d);
+setTimeout(function dayLine() { try { const d = today(), k = "sora-quote-day"; if (localStorage.getItem(k) === d) return; if (!sheet.classList.contains("hidden") || document.querySelector(".say") || document.getElementById("intro") || window.__firstRun()) { setTimeout(dayLine, 20000); return; }   /* FIN-U195：有面板、有人在說話時先不出現 */ localStorage.setItem(k, d); const q = quoteOfDay(d);
   toast(LANG === "en" ? "✦ Today's line: " + q[1] : "✦ 今日一句：" + q[0], null, null, 4600); } catch { } }, 9000);   // 熊 FIN-U87：多停 2 秒
 const STORY_KEY = "sora-story-i";
 // FIN-U62（熊）：每個地點、物件、小遊戲的效果，由她或鄰居隨機說出來；要那個地方開放了才說
@@ -9265,6 +9315,7 @@ try {
   const fromStudy = new URLSearchParams(location.search).get("from") === "study";   // 從學習遊戲的書房下樓來：先播她走下樓梯
   const q = new URLSearchParams(location.search).get("pet"); if (q) setTimeout(() => scene3d.setPet(q), 0); // 預覽：?pet=貓
   document.getElementById("loading").remove();
+  if (PVB) { try { scene3d.pvAtt(); } catch { } }
   render();
   if (fromStudy) scene3d.arriveFromStudy();
   if (!new URLSearchParams(location.search).has("nolook")) maybeLook();
@@ -12887,7 +12938,7 @@ function buildScene(THREE, OrbitControls, GLTFLoader, POST) {
       // FIN-U146（熊：點她，她要轉向玩家，不是轉向前方）：被點的人面向玩家的人偶；人偶不在屋外（在家裡點窗外的人）才看鏡頭
       const angD = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
       const faceWho = () => (avFloor === "ext" && av.visible) ? av.position : g.worldToLocal(camera.position.clone());
-      let roseStroll = false, roseCool = 4, convo = null, roseLook = 0, alien = null, focusName = null, focusT = 0;   // focusName：玩家點了這個人在跟她聊天（FIN-U34）
+      let attP = null; let roseStroll = false, roseCool = 4, convo = null, roseLook = 0, alien = null, focusName = null, focusT = 0;   // focusName：玩家點了這個人在跟她聊天（FIN-U34）
       { // 小鎮公園（FIN-U27）：在家左邊再過去一點；壞掉時是隕石坑和施工圍欄，修好變成公園
         const P = new THREE.Group(); P.position.set(-25, 0, 10); g.add(P);
         const broken = new THREE.Group(), fixed = new THREE.Group(); P.add(broken, fixed);
@@ -13425,11 +13476,24 @@ function buildScene(THREE, OrbitControls, GLTFLoader, POST) {
         const triT = new THREE.CanvasTexture(triCv); triT.colorSpace = THREE.SRGBColorSpace; const triM = new THREE.SpriteMaterial({ map: triT, transparent: true, depthWrite: false, toneMapped: false, fog: false });   // FIN-U96（熊）：提示三角形做成平面的
         const ringM = new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
         const items = {};
-        const make = (id) => { const o = new THREE.Group(); o.userData.marker = id; const c = new THREE.Sprite(triM); c.scale.set(0.9, 0.9, 1); c.userData.noOcc = true; o.add(c);
+        const lampOn = new THREE.MeshBasicMaterial({ color: "#ffd75a", toneMapped: false, fog: false }), lampOff = new THREE.MeshBasicMaterial({ color: "#5a5650", fog: false });
+        const tagM = {}, tagOf = (k) => tagM[k] || (tagM[k] = (() => { const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64; const c = cv.getContext("2d"); c.fillStyle = k === "off" ? "rgba(60,56,52,.85)" : "rgba(40,30,8,.85)"; c.beginPath(); c.roundRect(4, 6, 248, 52, 24); c.fill(); c.fillStyle = k === "off" ? "#d8d2c8" : "#ffe7a0"; c.font = "bold 28px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+          c.fillText(LANG === "en" ? ({ on: "You can play today", off: "Played today", shop: "Just opened" })[k] : ({ on: "今天可以玩", off: "今天玩過了", shop: "剛開幕・可以進去" })[k], 128, 33); const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; return new THREE.SpriteMaterial({ map: tx, transparent: true, depthWrite: false, toneMapped: false, fog: false }); })());
+        const haloM = (() => { const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, "rgba(255,215,90,.9)"); gr.addColorStop(1, "rgba(255,215,90,0)"); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; return new THREE.SpriteMaterial({ map: tx, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false, fog: false }); })();
+        const SHOPK = ["bakery", "market", "conv", "books", "florist", "clothes", "restaurant", "cinema", "gym", "salon", "travel", "stadium", "mall"];
+        const makeLamp = (id) => { const o = new THREE.Group(); o.userData.marker = id; o.userData.lamp = true;
+          const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), lampOn); bulb.userData.noOcc = true; o.add(bulb); o.userData.bulb = bulb;
+          const halo = new THREE.Sprite(haloM); halo.scale.set(0.55, 0.55, 1); halo.userData.noOcc = true; o.add(halo); o.userData.halo = halo;
+          const tag = new THREE.Sprite(tagOf(SHOPK.includes(id) ? "shop" : "on")); tag.scale.set(1.6, 0.4, 1); tag.position.y = 0.45; tag.visible = false; tag.userData.noOcc = true; o.add(tag); o.userData.tag = tag;
+          const hit = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); o.add(hit); MK.add(o); return o; };
+        const make = (id) => { if (PVB) return makeLamp(id); const o = new THREE.Group(); o.userData.marker = id; const c = new THREE.Sprite(triM); c.scale.set(0.9, 0.9, 1); c.userData.noOcc = true; o.add(c);
           const r = mk(new THREE.RingGeometry(0.5, 0.62, 32), ringM, o, 0, 0, 0, false); r.rotation.x = -Math.PI / 2; r.userData.ring = true; r.userData.noOcc = true; o.userData.ring = r; MK.add(o); return o; };
-        DIST.markers = { root: MK, set(list) { const seen = new Set(); for (const m of list) { seen.add(m.id); const o = items[m.id] || (items[m.id] = make(m.id)); o.userData.base = [m.x, m.y, m.z]; o.visible = true; }
+        DIST.markers = { root: MK, set(list) { const seen = new Set(); for (const m of list) { seen.add(m.id); const o = items[m.id] || (items[m.id] = make(m.id)); o.userData.base = [m.x, m.y, m.z]; o.visible = true;
+              if (o.userData.lamp) { o.userData.off = !!m.off; o.userData.bulb.material = m.off ? lampOff : lampOn; o.userData.halo.visible = !m.off; o.userData.tag.material = tagOf(m.off ? "off" : SHOPK.includes(m.id) ? "shop" : "on"); } }
             for (const [id, o] of Object.entries(items)) if (!seen.has(id)) o.visible = false; },
-          tick: (t) => { for (const o of Object.values(items)) { if (!o.visible) continue; const [x, y, z] = o.userData.base; o.position.set(x, y + Math.sin(t * 2.2 + x) * 0.18, z);
+          tick: (t) => { for (const o of Object.values(items)) { if (!o.visible) continue; const [x, y, z] = o.userData.base;
+              if (o.userData.lamp) { o.position.set(x, y - 0.7, z); o.userData.tag.visible = avFloor === "ext" && av.visible && Math.hypot(av.position.x - x, av.position.z - z) < 5; continue; }   /* B 版小燈：穩定亮著、不跳；走近才出現文字 */
+              o.position.set(x, y + Math.sin(t * 2.2 + x) * 0.18, z);
             o.userData.ring.position.y = -(y + Math.sin(t * 2.2 + x) * 0.18) + 0.06; o.userData.ring.scale.setScalar(1 + 0.15 * Math.sin(t * 3)); } } };
       }
       { // 小鎮的隨機事件：今天的那件事在鎮上某個地方出現（點了有小獎勵）
@@ -13553,6 +13617,11 @@ function buildScene(THREE, OrbitControls, GLTFLoader, POST) {
       extG.userData.town = {
         npcs() { return [...(rose.root.visible ? [{ name: "Rose", root: rose.root, head: rose.head, arm: (rose.arms || [])[1] }] : []), ...walkers.filter(w => w.p.root.visible).map(w => ({ name: w.name, root: w.p.root, head: w.p.head, arm: (w.p.arms || [])[1] })), ...evtList.map(c => ({ name: "evt:" + c.i, root: c.root, head: c.root }))]; },
         setEvent(ev) { setTownEvent(ev); },   // 可以點的人（FIN-U34）
+        pvAtt(parent) { if (attP) return true; attP = person({ name: "Attendant", kind: "m", shirt: "#1d3a6b", pants: "#262b36", hair: "#2a2220", shoe: "#1a1a1a" });
+          const capM = M("#1d3a6b"), cap = new THREE.Group(); cap.add(new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.29, 0.16, 20), capM)); { const br = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.03, 20, 1, false, -Math.PI / 2, Math.PI), capM); br.position.set(0, -0.07, 0.06); cap.add(br); }
+          { const bd = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.02), M("#ffcf5a")); bd.position.set(0, 0.01, 0.28); cap.add(bd); } cap.position.set(0, 0.25, 0); attP.head.add(cap);
+          parent.add(attP.root); attP.root.position.set(-0.8, 0, -0.55); attP.root.rotation.y = Math.atan2(1.8, -1.45); return true; },   /* 站牌左邊，面向走來的她 */
+        pvAttSay(en, zh, done) { if (!attP || !attP.root.visible) return false; const q = say(attP.head, en, 4.4, "m", 0.5, "att", zh ? { zh, done } : { done }); return !!(q && q.spoken); },
         pvRose(en, zh) { if (!rose.root.visible) return false; roseLook = 7; say(rose.head, en, 4.2, "f", 0.45, "Rose", LANG === "en" ? {} : { zh }); return true; },   /* B 版：她走過時，Rose 阿姨說的話 */
         focus(name) { if (String(name || "").startsWith("evt:")) return; focusName = name; focusT = name ? 2.2 : 0; const w = walkers.find(x => x.name === name); if (w && w.task) errandEnd(w); if (w && w.talk) { const c = w.talk; c.a.talk = c.b.talk = null; if (convo === c) convo = null; } },
         full(k) { return fullOf(k); },
@@ -15279,15 +15348,15 @@ function buildScene(THREE, OrbitControls, GLTFLoader, POST) {
     giftTick(dt);
     for (const f of studyAnims) f(now / 1000);                        // 學習遊戲書房家具的動畫                         // 水晶寶石燈慢慢換顏色
     const zone = floorShown === "ext" && avFloor === "ext" && route ? zoneOf(av.position) : null;
-    if (zone !== lastZone) { lastZone = zone; if (zone && (zone === "cafe" || (!userPitch && performance.now() - userCamT > 4000))) camTo(zone); }   // 走進咖啡店：鏡頭一定過去（熊 2026-11-13：手機上看不到她坐下、點餐）
+    if (zone !== lastZone) { lastZone = zone; if (zone && (zone === "cafe" || (!userPitch && !pvFast && performance.now() - userCamT > 4000))) camTo(zone); }   /* B 版走去車站那一趟：鏡頭一直跟著她（低角度），不跳去區域鏡頭 */   // 走進咖啡店：鏡頭一定過去（熊 2026-11-13：手機上看不到她坐下、點餐）
     if (extG.visible) { if (extG.userData.town) extG.userData.town.tick(dt * SIM_SPEED, now / 1000); }
     sayTick(dt); hazeTick(); ambTick(dt);
     if (extG.userData.cafe) { extG.userData.cafe.cut(floorShown === "ext" && (zone === "cafe" || lookKey === "cafe")); extG.userData.cafe.tick(dt * SIM_SPEED); }
     if (camGoal) { const ca = 1 - Math.pow(0.94, Math.min(dt, 0.1) * 60); controls.target.lerp(camGoal.tgt, ca); camera.position.lerp(camGoal.cam, ca);   // FIN-U49：照時間移動（慢的手機也會到位）
-      if (!camGoal.t0) camGoal.t0 = now; if (camera.position.distanceTo(camGoal.cam) < 0.03 || now - camGoal.t0 > (camGoal.hold || 2600)) camGoal = null; }   // FIN-U34：鏡頭到不了目標（被限制角度擋住）也會停，不會一直卡住、讓她走出畫面
+      if (!camGoal.t0) camGoal.t0 = now; if (camera.position.distanceTo(camGoal.cam) < 0.03 || now - camGoal.t0 > (camGoal.hold || 2600) * (window.__camHoldK || 1)) camGoal = null; }   // FIN-U34：鏡頭到不了目標（被限制角度擋住）也會停，不會一直卡住、讓她走出畫面
     else if (floorShown === "ext" && route && !["yard", "garden"].includes(outSub) && zone !== "cafe" && avFloor === "ext" && performance.now() - userCamT > 4000) {   // 出門時鏡頭慢慢跟著她（FIN-U211 熊：和 Niko 散步時人會不見——以前只有去小鎮才跟，去公園、去店裡鏡頭停在原地）
       av.getWorldPosition(_fp); { const nr = extG.userData.nkWalking && extG.userData.nkWalking() && extG.userData.niko && extG.userData.niko.townRoot ? extG.userData.niko.townRoot() : null; if (nr && nr.visible) { nr.getWorldPosition(_fq); _fp.lerp(_fq, 0.5); } } _fp.y = 1.6;   /* 一起散步：看兩個人的中間 */ _fp.sub(controls.target).multiplyScalar(Math.min(1, Math.min(dt, 0.25) * 3.2));   /* 熊：走到畫面邊緣鏡頭才動，太慢——跟快一點 */   /* FIN-U211：照時間（慢的手機也跟得上） */ controls.target.add(_fp); camera.position.add(_fp);
-      if (!userPitch) { const off = new THREE.Vector3().copy(camera.position).sub(controls.target), len = Math.min(14, Math.max(8, off.length())); off.y = 0; if (off.lengthSq() < 1e-4) off.set(0, 0, 1); off.normalize().multiplyScalar(len * 0.68); off.y = len * 0.74; camera.position.lerp(_fq.copy(controls.target).add(off), Math.min(1, Math.min(dt, 0.25) * 2.5)); }   /* FIN-U211：鏡頭抬高、斜斜往下看（以前很低，被路對面的店、樹擋住，看不到兩個人） */
+      if (!userPitch) { const off = new THREE.Vector3().copy(camera.position).sub(controls.target), len = pvFast ? Math.min(10, Math.max(7.5, off.length())) : Math.min(14, Math.max(8, off.length())); off.y = 0; if (off.lengthSq() < 1e-4) off.set(0, 0, 1); off.normalize().multiplyScalar(len * (pvFast ? 0.95 : 0.68)); off.y = len * (pvFast ? 0.3 : 0.74);   /* B 版走去車站：低一點、接近平視 */ camera.position.lerp(_fq.copy(controls.target).add(off), Math.min(1, Math.min(dt, 0.25) * 2.5)); }   /* FIN-U211：鏡頭抬高、斜斜往下看（以前很低，被路對面的店、樹擋住，看不到兩個人） */
     }
     else if ((floorShown !== "ext" || !lookKey || (lookKey !== "npc" && performance.now() - lookKeyT > 20000)) && !(performance.now() - lastAvTap < 6000) && avFloor === floorShown && !placingOn && !snap && performance.now() - userCamT > 2500) {   // 室內：她快走出畫面就把鏡頭慢慢移過去（FIN-U23：手機上走樓梯會看不到她）
       av.getWorldPosition(_fp); _fp.y += 1.1; _fq.copy(_fp).project(camera);
@@ -15612,7 +15681,7 @@ function buildScene(THREE, OrbitControls, GLTFLoader, POST) {
   let hazeShown = -1;
   function hazeTick() { const v = floorShown === "ext" ? hazeV : 0; if (Math.abs(v - hazeShown) > 0.01) { hazeShown = v; hazeEl.style.opacity = v.toFixed(2); } }
   // 走進花園／咖啡店：鏡頭拉近（玩家自己轉鏡頭就停）；lookKey＝玩家按「走進花園看看」
-  const CAM_SPOTS = { bakeryIn: { tgt: [34.0, 1.3, 21.3], cam: [34.6, 2.1, 16.4] }, booksDoor: { tgt: [29.0, 1.7, 22.1], cam: [35.0, 3.0, 15.0] }, restaurantDoor: { tgt: [-15.4, 1.7, 21.8], cam: [-13.6, 3.0, 14.4] }, cinemaDoor: { tgt: [-2.4, 1.7, 22.0], cam: [-0.6, 3.0, 14.6] }, gymDoor: { tgt: [11.6, 1.7, 21.8], cam: [13.4, 3.0, 14.4] }, salonDoor: { tgt: [-24.6, 1.7, 21.8], cam: [-22.8, 3.0, 14.4] }, stadiumDoor: { tgt: [-53.9, 1.7, 21.8], cam: [-52.1, 3.0, 14.4] }, mallDoor: { tgt: [67.6, 1.7, 21.8], cam: [69.4, 3.0, 14.4] }, travelDoor: { tgt: [19.9, 1.7, 21.8], cam: [21.7, 3.0, 14.4] }, floristDoor: { tgt: [-33.4, 1.7, 21.6], cam: [-31.6, 3.0, 14.2] }, clothesDoor: { tgt: [-43.4, 1.7, 22.1], cam: [-41.6, 3.0, 14.7] }, convDoor: { tgt: [54.6, 1.7, 21.7], cam: [56.4, 3.0, 14.3] }, bakeryDoor: { tgt: [36.6, 1.7, 21.6], cam: [38.4, 3.0, 14.2] }, marketDoor: { tgt: [46.2, 1.7, 22.1], cam: [48, 3.0, 14.7] }, stores: { tgt: [41, 2.5, 23], cam: [24, 5, 17.6] }, park: { tgt: [-25, 0.8, 10], cam: [-22, 7, 21] }, parkPond: { tgt: [-25, 0.4, 6.6], cam: [-23.4, 3.0, 13.4] }, parkFount: { tgt: [-25, 0.9, 10], cam: [-23.6, 2.6, 16.8] }, door: { tgt: [2.0, 1.4, 9.2], cam: [4.2, 4.6, 19.5] }, station: { tgt: [-22, 2.2, 19.6], cam: [-22, 4.5, 9.5] }, roseDoor: { tgt: [-8.6, 1.4, 9.0], cam: [-6.4, 4.6, 19.3] }, cafeDoor: { tgt: [CAFE_C[0], 1.5, CAFE_C[1] + 2.6], cam: [CAFE_C[0] + 0.8, 2.8, CAFE_C[1] + 9.5] }, garden: { tgt: [11.8, 0.4, 6.9], cam: [12.6, 4.4, 12.6] }, overview: { tgt: [6, 1, 10], cam: [9, 15, 36] }, rose: { tgt: [-8.2, 1.0, 9.9], cam: [-5.2, 4.6, 18.5] }, mine: { tgt: [-39, 1.9, -24], cam: [-39, 3, -13] }, obs: { tgt: [-16, 3.6, -28], cam: [-16, 4, -13.5] }, sgate: { tgt: [4, 4.0, -34], cam: [4, 4, -19.5] }, wtower: { tgt: [26, 4.6, -24], cam: [26, 4, -9.5] }, clock: { tgt: [42, 5.6, -24], cam: [42, 4, -7.5] }, lhouse: { tgt: [-86, 6, -8], cam: [-68, 5, -8] }, clockTop: { tgt: [8, 2, 10], cam: [42, 12.5, -21.2] }, cafe: { tgt: [CAFE_C[0] - 0.3, 1.1, CAFE_C[1] - 0.4], cam: [CAFE_C[0] + 1.2, 5.6, CAFE_C[1] + 9.2] } };
+  const CAM_SPOTS = { bakeryIn: { tgt: [34.0, 1.3, 21.3], cam: [34.6, 2.1, 16.4] }, booksDoor: { tgt: [29.0, 1.7, 22.1], cam: [35.0, 3.0, 15.0] }, restaurantDoor: { tgt: [-15.4, 1.7, 21.8], cam: [-13.6, 3.0, 14.4] }, cinemaDoor: { tgt: [-2.4, 1.7, 22.0], cam: [-0.6, 3.0, 14.6] }, gymDoor: { tgt: [11.6, 1.7, 21.8], cam: [13.4, 3.0, 14.4] }, salonDoor: { tgt: [-24.6, 1.7, 21.8], cam: [-22.8, 3.0, 14.4] }, stadiumDoor: { tgt: [-53.9, 1.7, 21.8], cam: [-52.1, 3.0, 14.4] }, mallDoor: { tgt: [67.6, 1.7, 21.8], cam: [69.4, 3.0, 14.4] }, travelDoor: { tgt: [19.9, 1.7, 21.8], cam: [21.7, 3.0, 14.4] }, floristDoor: { tgt: [-33.4, 1.7, 21.6], cam: [-31.6, 3.0, 14.2] }, clothesDoor: { tgt: [-43.4, 1.7, 22.1], cam: [-41.6, 3.0, 14.7] }, convDoor: { tgt: [54.6, 1.7, 21.7], cam: [56.4, 3.0, 14.3] }, bakeryDoor: { tgt: [36.6, 1.7, 21.6], cam: [38.4, 3.0, 14.2] }, marketDoor: { tgt: [46.2, 1.7, 22.1], cam: [48, 3.0, 14.7] }, stores: { tgt: [41, 2.5, 23], cam: [24, 5, 17.6] }, park: { tgt: [-25, 0.8, 10], cam: [-22, 7, 21] }, parkPond: { tgt: [-25, 0.4, 6.6], cam: [-23.4, 3.0, 13.4] }, parkFount: { tgt: [-25, 0.9, 10], cam: [-23.6, 2.6, 16.8] }, door: { tgt: [2.0, 1.4, 9.2], cam: [4.2, 4.6, 19.5] }, station: { tgt: [-22, 2.5, 19.6], cam: [-22, 4.5, 9.5] }, roseDoor: { tgt: [-8.6, 1.4, 9.0], cam: [-6.4, 4.6, 19.3] }, cafeDoor: { tgt: [CAFE_C[0], 1.5, CAFE_C[1] + 2.6], cam: [CAFE_C[0] + 0.8, 2.8, CAFE_C[1] + 9.5] }, garden: { tgt: [11.8, 0.4, 6.9], cam: [12.6, 4.4, 12.6] }, overview: { tgt: [6, 1, 10], cam: [9, 15, 36] }, rose: { tgt: [-8.2, 1.0, 9.9], cam: [-5.2, 4.6, 18.5] }, mine: { tgt: [-39, 1.9, -24], cam: [-39, 3, -13] }, obs: { tgt: [-16, 3.6, -28], cam: [-16, 4, -13.5] }, sgate: { tgt: [4, 4.0, -34], cam: [4, 4, -19.5] }, wtower: { tgt: [26, 4.6, -24], cam: [26, 4, -9.5] }, clock: { tgt: [42, 5.6, -24], cam: [42, 4, -7.5] }, lhouse: { tgt: [-86, 6, -8], cam: [-68, 5, -8] }, clockTop: { tgt: [8, 2, 10], cam: [42, 12.5, -21.2] }, cafe: { tgt: [CAFE_C[0] - 0.3, 1.1, CAFE_C[1] - 0.4], cam: [CAFE_C[0] + 1.2, 5.6, CAFE_C[1] + 9.2] } };
   let camGoal = null, lastZone = null, lookKey = null, lookKeyT = 0, followIn = false; const _fq = new THREE.Vector3();
   const zoneOf = (q) => Math.abs(q.x - CAFE_C[0]) < 3.8 && q.z > CAFE_C[1] - 3.3 && q.z < CAFE_C[1] + 3.3 ? "cafe" : outSub === "garden" && q.x > 8.6 && q.x < 15 && q.z > 4.4 && q.z < 9.4 ? "garden" : null;
   function camTo(k) { const sp = CAM_SPOTS[k]; if (!sp) return; const ox = OFF.ext, tg = new THREE.Vector3(sp.tgt[0] + ox, sp.tgt[1], sp.tgt[2]), f = Math.min(2.2, Math.max(1, 0.95 / (camera.aspect || 1)));   // 手機直的畫面：鏡頭退遠一點（FIN-U26）
@@ -15731,6 +15800,25 @@ function buildScene(THREE, OrbitControls, GLTFLoader, POST) {
     pvWalk() { const res = requestTrip("outside", "pvstation", true); if (res === "ok") { wantTrip = null; directOut = false; pvFast = true; startTrip("outside"); } return res; }, pvSlow() { pvFast = false; },
     avPos() { return [avFloor, +av.position.x.toFixed(2), +av.position.z.toFixed(2)]; },
     pvRose(en, zh) { const t = extG.userData.town; return !!(t && t.pvRose && t.pvRose(en, zh)); },
+    pvAtt() { const t = extG.userData.town; return !!(t && t.pvAtt && t.pvAtt(stationSign)); },
+    pvAttSay(en, zh, done) { const t = extG.userData.town; return !!(t && t.pvAttSay && t.pvAttSay(en, zh, done)); },
+    avStill() { return !route && ["walk", "stand", "idle"].includes(mode) && !!(window.__autoHold && window.__autoHold()); },
+    dropMine() { for (let i = sQ.length - 1; i >= 0; i--) if (sQ[i].who === "me") sFin(sQ.splice(i, 1)[0]); },   /* 換場景、下一段對話：還沒念的舊回覆不念了 */
+    sayNow(text, spoken) { this.dropMine(); return say(av, text, 2.8, LOOK.sex === "m" ? "m" : "f", 2.35 * (LOOK.tall || 1), "me", { speak: spoken }); },
+    pvIntroCam() { if (avFloor !== floorShown || !av.visible || avFloor === "ext") return false; const p = av.position.clone(), W = new THREE.Vector3(); av.getWorldPosition(W);
+      /* 開場：鏡頭放在房間裡（不在牆外）、往她身上看沒有東西擋（樓梯、燈架、衣架都算），她轉向鏡頭再偏 30 度——正面偏側 */
+      const rc = new THREE.Raycaster(); rc.camera = camera; const mine = (o) => { for (let q = o; q; q = q.parent) if (q === av) return true; return false; };
+      const solid = (o) => { if (!(o.isMesh || o.isInstancedMesh) || !visDeep(o) || (o.material && (o.material.visible === false || (o.material.transparent && o.material.opacity < 0.3)))) return false; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); const sc = new THREE.Vector3(); o.getWorldScale(sc); return o.geometry.boundingSphere.radius * Math.max(sc.x, sc.y, sc.z) < 2.6; };   /* 牆、地板會自己切開，不算 */
+      const X1 = 8, Z1 = ROOM_D, m = 0.45, ref = Math.atan2(camera.position.x - W.x, camera.position.z - W.z), C = [];
+      for (let k = 0; k < 24; k++) { const a = ref + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12, dx = Math.sin(a), dz = Math.cos(a);
+        const d = Math.max(7.05, controls.minDistance + 0.05) / 1.03; if (p.x + dx * d < m || p.z + dz * d < m) continue;   /* 室內鏡頭最近 7：從開著的那兩面（前、右）看進來，不從後牆外 */
+        const cam = W.clone().add(new THREE.Vector3(dx * d, 1.75, dz * d)); let bad = false;
+        for (const dy of [1.45, 1.0, 0.45]) { for (const sd of [-0.4, 0, 0.4]) { const to = W.clone().add(new THREE.Vector3(-dz * sd, dy, dx * sd)), v = to.clone().sub(cam), L = v.length(); rc.set(cam, v.normalize()); rc.far = L - 0.1;
+            if (rc.intersectObject(scene, true).some(h => !mine(h.object) && solid(h.object))) { bad = true; break; } } if (bad) break; }
+        if (!bad) { C.push({ a, cam }); break; } }
+      if (!C.length) return false; const { a, cam } = C[0];
+      av.rotation.y = a + Math.PI / 6;   /* 面向鏡頭再偏 30 度 */
+      camGoal = { tgt: W.clone().add(new THREE.Vector3(0, 1.0, 0)), cam, hold: 4000 }; userCamT = performance.now() + 15000; window.__pvCamDbg = { best: cam.toArray().map(n => +n.toFixed(2)), a: +a.toFixed(2), now: () => [camera.position, controls.target].map(v => v.toArray().map(n => +n.toFixed(2))) }; return true; },
     goSpot(kind) {   // FIN-U56：新手箭頭的地方——她直接出現在旁邊
       let o = null;
       if (kind === "rose") { spotNext = { x: -8.1, z: 11.2, face: Math.atan2(-8.6 + 8.1, 9.95 - 11.2) }; const res = goNow("spot");   // FIN-U187（熊：地圖點 Rose 阿姨家沒有到她家）：她家門口是固定的（-8.6, 9.95）；之前用她當下的 3D 位置，外面的場景還沒畫過時位置是錯的，會被送到房子後面卡住

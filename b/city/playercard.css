@@ -1,0 +1,17 @@
+/* 玩家小卡（熊 2026-11-21） */
+#pcOv { position: fixed; inset: 0; z-index: 2147483200; background: rgba(12, 10, 28, .45); display: grid; place-items: center; padding: 16px; font: 15px/1.5 system-ui, "Noto Sans TC", sans-serif; }
+#pcOv .pcCard { width: min(340px, 100%); background: #fbf8ff; color: #2c2540; border-radius: 18px; padding: 18px 16px 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, .3); display: flex; flex-direction: column; gap: 10px; }
+#pcOv .pcName { font-size: 19px; }
+#pcOv .pcRel { color: #6c6384; margin-top: -6px; }
+#pcOv .pcActs, #pcOv .pcInv, #pcOv .pcFoot { display: flex; flex-wrap: wrap; gap: 8px; }
+#pcOv .pcInv small { width: 100%; color: #6c6384; }
+#pcOv button { font: inherit; flex: 1 1 auto; padding: 9px 12px; border-radius: 999px; border: 0; background: #5a5aad; color: #fff; cursor: pointer; }
+#pcOv button:disabled { opacity: .6; }
+#pcOv .pcGhost { background: transparent; color: #6c6384; border: 1px solid #d8d0ea; }
+#pcOv .pcFoot { justify-content: space-between; border-top: 1px solid #ece6f6; padding-top: 10px; }
+.pcWave { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 70px); transform: translate(-50%, -10px); opacity: 0; transition: opacity .3s, transform .3s; z-index: 2147483100; display: flex; gap: 10px; align-items: center; padding: 8px 10px 8px 16px; border-radius: 999px; background: rgba(40, 32, 80, .9); color: #fff; font: 14px system-ui, "Noto Sans TC", sans-serif; }
+.pcWave.on { opacity: 1; transform: translate(-50%, 0); }
+.pcWave button { font: inherit; border: 0; border-radius: 999px; padding: 6px 12px; background: #ffd27a; color: #3a2a10; cursor: pointer; }
+#pcToast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(30, 26, 60, .88); color: #fff; font: 14px system-ui, sans-serif; opacity: 0; transition: opacity .3s; z-index: 2147483300; pointer-events: none; }
+#pcToast.on { opacity: 1; }
+.metag.other { pointer-events: auto; cursor: pointer; }

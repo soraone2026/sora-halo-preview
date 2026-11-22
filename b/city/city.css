@@ -1,0 +1,106 @@
+/* 奧蕾莉亞的城市：全螢幕 3D，上方資訊列，下方搭車按鈕 */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1020; color: #eef1f8;
+  font: 15px/1.5 "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; touch-action: none; }
+.hud { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: calc(12px + env(safe-area-inset-top)) 14px 0; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.spacer { flex: 1; }
+.metag { position: fixed; left: 0; top: 0; z-index: 4; display: flex; align-items: center; gap: 4px; padding: 2px 9px 2px 3px; border-radius: 99px; background: rgba(255,255,255,.78); color: #4a3f6b; font: 600 12px/1.4 system-ui, sans-serif; box-shadow: 0 2px 6px rgba(0,0,0,.15); pointer-events: none; transition: opacity .2s; white-space: nowrap; }
+.metag img { width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+body.embed #back { display: none; }
+body.embed .hud { padding-top: calc(6px + env(safe-area-inset-top)); }
+.card strong { white-space: nowrap; }
+@media (max-width: 520px) { .card { padding: 4px 10px; } .card strong { font-size: .9rem; } }
+.card { background: rgba(14, 18, 32, .72); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px; padding: 6px 12px;
+  display: flex; flex-direction: column; line-height: 1.3; }
+.card strong { font-weight: 600; letter-spacing: .04em; }
+.muted { color: #aeb6c8; font-size: .78rem; }
+.btn { border: 1px solid rgba(255, 255, 255, .18); background: rgba(14, 18, 32, .72); backdrop-filter: blur(8px); color: #eef1f8; border-radius: 999px;
+  padding: 8px 14px; font: inherit; font-size: .88rem; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.btn.primary { background: #f2c14e; color: #2a1d08; border-color: #f2c14e; font-weight: 700; }
+.btn:disabled { opacity: .55; cursor: default; }
+.coin { font-weight: 700; }
+.actions { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom)); display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 24px); }
+.loading { position: fixed; inset: 0; display: grid; place-items: center; margin: 0; color: #aeb6c8; pointer-events: none; }
+.toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(16px); opacity: 0; transition: .3s;
+  background: rgba(14, 18, 32, .9); border: 1px solid rgba(242, 193, 78, .6); border-radius: 999px; padding: 8px 16px; max-width: calc(100vw - 32px); text-align: center; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%); }
+body.day .card, body.day .btn:not(.primary), body.dawn .card, body.dawn .btn:not(.primary) { background: rgba(255, 255, 255, .78); color: #1f2433; border-color: rgba(30, 36, 51, .12); }
+body.day .muted, body.dawn .muted { color: #5b6273; }
+@media (max-width: 520px) { .btn { padding: 7px 11px; font-size: .82rem; } }
+[hidden] { display: none !important; }
+/* 寶石與小遊戲 */
+.gems { font-weight: 700; }
+.game { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(4, 6, 14, .55); backdrop-filter: blur(3px); padding: 16px; }
+.game-card { --accent: #8fe6ff; width: min(520px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: rgba(14, 18, 32, .94); color: #eef1f8;
+  border: 1px solid var(--accent); border-radius: 20px; padding: 14px 16px 18px; box-shadow: 0 10px 40px rgba(0, 0, 0, .45); }
+.game-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.game-time, .game-score { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+.game-body .muted { margin: 2px 0 10px; }
+.game-result { font-size: 1.05rem; text-align: center; margin: 18px 0 12px; }
+.game-end { display: grid; justify-items: center; gap: 12px; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.opt { border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .06); color: inherit; border-radius: 12px; padding: 11px 8px; font: inherit; cursor: pointer; }
+.opt:hover { border-color: var(--accent); }
+.opt.right { background: rgba(31, 164, 99, .35); border-color: #1fa463; }
+.opt.wrong { background: rgba(224, 17, 95, .3); border-color: #e0115f; }
+.meteor-sky { position: relative; height: min(42vh, 300px); border-radius: 14px; overflow: hidden;
+  background: radial-gradient(circle at 70% 20%, rgba(143, 230, 255, .18), transparent 40%), linear-gradient(#0a1030, #1b2442); }
+.meteor-sky::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: .7; }
+.meteor-word { position: absolute; left: 50%; top: 0; padding: 8px 16px; border-radius: 999px; font: 700 1.25rem/1.2 Georgia, serif; letter-spacing: .03em;
+  background: rgba(255, 255, 255, .1); border: 1px solid var(--accent); box-shadow: 0 -16px 24px -8px var(--accent); }
+.meteor-word.hit { background: rgba(31, 164, 99, .5); }
+.meteor-word.miss { background: rgba(224, 17, 95, .45); }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.card-g { aspect-ratio: 1; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .18); cursor: pointer; display: grid; place-items: center;
+  background: repeating-linear-gradient(45deg, rgba(255, 154, 216, .16) 0 6px, rgba(255, 255, 255, .04) 6px 12px); transition: transform .2s; }
+.card-g .gem-ico { opacity: 0; transition: opacity .15s; }
+.card-g.up { background: rgba(255, 255, 255, .1); transform: rotateY(8deg); }
+.card-g.up .gem-ico { opacity: 1; }
+.card-g.done { border-color: var(--accent); background: rgba(255, 154, 216, .14); }
+.spell-hint { text-align: center; font-size: 1.5rem; font-weight: 700; margin: 6px 0; color: var(--accent); }
+.spell-slots { display: flex; justify-content: center; gap: 6px; margin: 10px 0; flex-wrap: wrap; }
+.slot { width: 34px; height: 42px; border-bottom: 3px solid rgba(255, 255, 255, .4); display: grid; place-items: center; font: 700 1.3rem Georgia, serif; }
+.spell-slots.ok .slot { border-color: #1fa463; color: #7be3a9; }
+.spell-slots.bad { animation: shake .4s; }
+.spell-slots.bad .slot { border-color: #e0115f; }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.spell-tiles { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.tile { width: 44px; height: 48px; border-radius: 10px; border: 1px solid var(--accent); background: rgba(242, 193, 78, .12); color: inherit; font: 700 1.3rem Georgia, serif; cursor: pointer; }
+.tile:disabled { opacity: .25; cursor: default; }
+.gem-ico { display: inline-block; width: 22px; height: 22px; clip-path: polygon(50% 100%, 0 38%, 22% 8%, 78% 8%, 100% 38%);
+  background: linear-gradient(160deg, rgba(255, 255, 255, .85), transparent 45%), var(--gem, #ccc); vertical-align: -4px; }
+.gem-ico.big { width: 40px; height: 40px; }
+.cards .gem-ico { width: 44%; height: 44%; }
+.k-ruby { --gem: #e0115f; } .k-sapphire { --gem: #1f5fd6; } .k-emerald { --gem: #1fa463; } .k-amethyst { --gem: #9b5de5; } .k-topaz { --gem: #f5b82e; }
+.k-star { --gem: linear-gradient(120deg, #fdfdff, #bfe9ff 40%, #ffd6f5 70%, #fff7c2); }
+.gem-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.gem-chip { display: inline-flex; gap: 6px; align-items: center; padding: 5px 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); }
+.bag-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0; }
+.bag-cell { display: grid; justify-items: center; gap: 2px; padding: 10px 4px; border-radius: 14px; background: rgba(255, 255, 255, .06); }
+.bag-cell b { font-size: 1.2rem; }
+.bag-cell.none { opacity: .4; }
+.logout { opacity: .8; }
+
+/* 路人聊天的泡泡（熊 2026-11-13） */
+.talk-layer { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+.talk { position: absolute; left: 0; top: 0; max-width: 180px; padding: 4px 9px; border-radius: 12px; background: #fffffff0; color: #222; font-size: 12px; line-height: 1.35; box-shadow: 0 2px 8px #0003; white-space: normal; }
+.talk::after { content: ""; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: #fffffff0; }
+
+/* 黃色小箭頭（和遊戲主畫面一樣，熊 2026-11-14：出了書房才出現） */
+#sleGuide { position: fixed; left: 0; top: 0; z-index: 25; pointer-events: none; display: none; flex-direction: column; align-items: center; gap: 3px; }
+#sleGuide.on { display: flex; } #sleGuide.below { flex-direction: column-reverse; }
+#sleGuide .gl { pointer-events: auto; background: rgba(74, 63, 107, .92); color: #fff; font-size: 12px; line-height: 1.35; padding: 5px 10px; border-radius: 12px; max-width: 220px; text-align: center; box-shadow: 0 4px 12px rgba(40, 30, 80, .25); }
+#sleGuide .gl button { margin: 0 0 0 6px; padding: 0 6px; font-size: 11px; background: transparent; color: #d9d0ff; border: 0; text-decoration: underline; cursor: pointer; }
+#sleGuide .ga { pointer-events: auto; cursor: pointer; padding: 0; margin-top: 2px; outline: 14px solid transparent;  width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 13px solid #ffcf5a; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .25)); animation: sleGbob .9s ease-in-out infinite; }
+@keyframes sleGbob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(6px) } }
+
+/* 圖書館發光的書（熊 2026-11-14） */
+.book-card { background: linear-gradient(160deg, rgba(38,28,64,.96), rgba(14,18,32,.96)); border: 1px solid rgba(255,214,140,.35); }
+.book-card .book-ev { font-size: 1.05rem; line-height: 1.6; margin: 0 0 10px; }
+.book-card .whisper { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: radial-gradient(circle at 30% 20%, rgba(255,214,140,.22), rgba(180,140,255,.12)); border: 1px solid rgba(255,214,140,.3); text-align: center; }
+.book-card .whisper small { color: #ffd98a; letter-spacing: .2em; } .book-card .whisper p { margin: 6px 0 0; font-size: 1.15rem; line-height: 1.6; color: #fff3d6; font-family: Georgia, "Noto Serif TC", serif; }
+.metag.other { background: rgba(255,250,240,.85); color: #3a5a4a; }
+.metag.other .dot { width: 8px; height: 8px; border-radius: 50%; background: #43b56a; margin-left: 4px; }

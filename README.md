@@ -10,9 +10,11 @@
 ## B 版（2026-11-22）
 直接開啟：**https://soraone2026.github.io/sora-halo-preview/b/**
 
-- 捏完臉後，二樓臥室跳出開場公告（第一個邀請）→ 她自己走去小鎮車站 → 修站名燈 → 修復手帳。
-- 這個公開版只有家和小鎮；奧蕾莉亞城區（廣場、圖書館、會響的晶石）只在本機預覽裡，按搭車會跳提示。
+- 捏完臉後，二樓臥室出現站務員的委託 →〔去車站看看〕她自己走去小鎮車站（或〔先逛房間〕，委託縮成側邊的「站務員的信」）→ 站務員開口、修站名燈 → 修復手帳。
+- 修好燈後可以〔去月台搭車 · 3 B〕到奧蕾莉亞城區（廣場、圖書館、會響的晶石、館員的三題）。
+- 試玩版沒有伺服器：車票、寶石、小遊戲入口由 `b/city/playtest-api.js` 在你的瀏覽器裡代答；朋友在線、邀請、寄明信片這版沒有。
 - 存檔一樣只在你自己的瀏覽器裡；上方「↺ 從角色設定重玩」連按兩次可以重來。和 A 版、正式遊戲都分開。
+- 這是測試用的暫時版本，測完會移除。
 
 ## English
 A short playable preview of *Sora One* (Xi Halo entrance, version A). Open the link above — no sign-in, no server. Your save lives only in your own browser and starts at 1 B; tap "↺ 重玩這段" twice to replay. Start from 「世界」 (World) → 「曦環城」 (Xi Halo).
