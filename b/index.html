@@ -7463,6 +7463,7 @@ function pvHint(xy, text) { document.getElementById("pvHint")?.remove(); documen
 function pvPlace(text) { let p = document.getElementById("pvPlace"); if (!p) { p = document.createElement("div"); p.id = "pvPlace"; document.body.appendChild(p); } p.textContent = text; p.classList.add("on"); clearTimeout(pvPlace.t); pvPlace.t = setTimeout(() => p.classList.remove("on"), 3200); }
 /* 她真的走過去：出門 → 院子 → 經過 Rose 阿姨家 → Astralis 星門站；路上地點的名字一個一個浮出來；到了站牌前才請玩家點一下 */
 function pvGoStation() { const en = LANG === "en"; sheet.classList.add("hidden"); document.querySelector(".annov")?.remove();
+  if (window.__no3d) { pvStationJob(); return; }   /* 沒有 3D：直接看委託 */
   const start = () => { if (document.querySelector(".safeov")) { setTimeout(start, 700); return; }   // 安全說明（在便箋之後）先看完
     let res = "no"; try { res = scene3d.pvWalk ? scene3d.pvWalk() : "no"; } catch { }
     if (res !== "ok") { pvGoStationCam(); return; }
@@ -8025,11 +8026,13 @@ function annList(d = today()) {
       b: [`<p>${h}${zhW}！</p><p>節日那天，<br>鎮上會有特別的小訪客，<br>商店裡也會出現只有那天才有的東西。</p><h4>日期</h4><p>${md(dd)} 00:00 ～ 23:59（當地時間）</p><p>記得那天回來看看！</p>`,
         `<p>${HOLI_EN[h] || h} ${enW}!</p><p>On the day,<br>a special little visitor comes to town,<br>and the shop has things you can only find then.</p><h4>Date</h4><p>${mdE(dd)}, 00:00–23:59 (local time)</p><p>Come back and see!</p>`] }); }
   for (const e of ANN_EVENTS) { const k = Math.round((Date.parse(e.date) - Date.parse(d)) / 864e5); if (k >= 0 && k <= 5) out.push({ id: `E-${e.date}`, date: d, ev: e.date, art: e.art || "guide", t: e.t, sum: e.sum || e.t, b: e.b }); }
-  if (PVB) { const S = pvbS(); if (S.note === "stored" && S.job !== "done") { const nm = (state.avatar || {}).name || "";
-      out.push({ id: "PV-note", date: d, art: "guide", pvgo: true, t: ["📮 站務員的字條", "📮 A note from the station attendant"], sum: ["星站的站名燈暗了一個字。", "A character on the Star Station's name light went dark."],
+  if (PVB) { const S = pvbS(); if (S.note && S.job !== "done") { const nm = (state.avatar || {}).name || "";
+      out.push({ id: "PV-note", date: d, art: "guide", pvgo: true, t: ["📮 站務員的字條・去小鎮找車站", "📮 The attendant's note · find the station in town"], sum: ["星站的站名燈暗了一個字。", "A character on the Star Station's name light went dark."],
         b: [`<p><b>${esc(nm)}，歡迎來到一元宇宙。</b></p><p>一顆流星落在小鎮上。昨晚，星站的站名燈也暗了一個字。</p><p>你是新搬來的遺跡修復師。站務員留了張字條：「有空來月台幫我看一眼嗎？」</p>`,
           `<p><b>${esc(nm)}, welcome to the One-Coin Universe.</b></p><p>A meteor fell on the town. Last night, one character on the Star Station's name light went dark too.</p><p>You're the ruin restorer who just moved in. The station attendant left a note: “Could you come and take a look at the platform when you have a moment?”</p>`] }); } }
-  return out.sort((a, b) => (b.ev ? 1 : 0) - (a.ev ? 1 : 0) || (a.guide ? 1 : 0) - (b.guide ? 1 : 0) || String(b.date).localeCompare(String(a.date)));
+  const so = out.sort((a, b) => (b.ev ? 1 : 0) - (a.ev ? 1 : 0) || (a.guide ? 1 : 0) - (b.guide ? 1 : 0) || String(b.date).localeCompare(String(a.date)));
+  const pi = so.findIndex(x => x.id === "PV-note"); if (pi > 0) so.unshift(so.splice(pi, 1)[0]);   /* B 版：站務員的字條置頂 */
+  return so;
 }
 // 公告的插圖：遊戲自己畫的（SVG，16:7），不放外面的照片
 function annArt(k) { const W = 320, H = 150, st = (n, seed) => Array.from({ length: n }, (_, i) => { const x = (i * 97 + seed * 31) % W, y = (i * 53 + seed * 17) % H, r = i % 7 ? 0.7 : 1.5; return `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" opacity="${(0.4 + (i % 5) * 0.12).toFixed(2)}"/>`; }).join("");
@@ -8911,7 +8914,7 @@ function openWorld() {
   const fixTag = (c) => { const n = cityFixDone(state, c), N = CITY_FIX[c]; return n >= N ? (en ? " · 🔧 all repaired" : "・🔧 都修好了") : n ? (en ? ` · 🔧 repaired ${n}/${N}` : `・🔧 修好 ${n}／${N}`) : ""; };   /* FIN-U185 */
   const planets = WORLD_PLANETS.map(([k, , em], i) => card(`data-wp="${k}"`, `linear-gradient(135deg,hsl(${200 + i * 28},45%,${seen[k] ? 46 : 32}%),hsl(${230 + i * 28},50%,${seen[k] ? 26 : 18}%))`, `${em} ${en ? PLANET_NM[k][1] : PLANET_NM[k][0]}`, seen[k] ? (en ? "✓ Visited" : "✓ 去過了") : (en ? "Not visited yet" : "還沒去過"), false)).join("")
     + card("", "linear-gradient(135deg,#2b2a3c,#17161f)", `📡 ${en ? "Further out" : "更遠的地方"}`, en ? `${WORLD_FAR_PLANETS.length} more planets, no route yet` : `還有 ${WORLD_FAR_PLANETS.length} 顆星球，還沒有航線`, true);
-  const cities = card('data-wc="halo"', "linear-gradient(135deg,#2a2550,#7c5ab8)", `🛰 ${en ? "Xi Halo" : "曦環城"}`, (paid ? (en ? "🎫 Ticket bought today — come and go" : "🎫 今天的星門票買了，可以來回") : (en ? `A city inside a ring · ticket ${HALO.ticket} B` : `蓋在環內側的城市・星門票 ${HALO.ticket} B`)) + fixTag("halo"), false)
+  const cities = card('data-wc="halo"', "linear-gradient(135deg,#2a2550,#7c5ab8)", `🛰 ${en ? "Xi Halo" : "曦環城"}`, (paid ? (en ? "🎫 Ticket bought today — come and go" : "🎫 今天的星門票買了，可以來回") : (en ? `A city inside a ring · ticket ${HALO.ticket} B` : `蓋在環內側的城市・星門票 ${HALO.ticket} B`)) + (PVB && !IN_SLE ? `<br><b>${en ? "Preview: entrance only · enter the city on the full site" : "可預覽入口・進城請至正式版"}</b>` : "") + fixTag("halo"), false)
     + (stillOpen(state) ? card('data-wc="still"', "linear-gradient(135deg,#7a3a5a,#e0905a)", `⏳ ${en ? "Stillmoment" : "凝瞬城"}`, (stillPaid(state, d) ? (en ? "🎫 Ticket bought today — come and go" : "🎫 今天的星門票買了，可以來回") : (en ? `A city stopped in a single second · ticket ${STILL.ticket} B` : `停在某一秒的城市・星門票 ${STILL.ticket} B`)) + fixTag("still"), false)
       : card("", "linear-gradient(135deg,#25223a,#141320)", `❔ ${en ? "A third city" : "第三座城市"}`, en ? "The signal comes and goes — maybe Xi Halo knows" : "訊號斷斷續續——也許曦環城知道它在哪裡", true))
     + (harborOpen(state) ? card('data-wc="harbor"', "linear-gradient(135deg,#0f3a4a,#2fa8a0)", `🌊 ${en ? "Tidelight Harbor" : "潮光港"}`, (harborPaid(state, d) ? (en ? "🎫 Ticket bought today — come and go" : "🎫 今天的星門票買了，可以來回") : (en ? `A harbour on a glowing tide · ticket ${HARBOR.ticket} B` : `漲著光的海港・星門票 ${HARBOR.ticket} B`)) + fixTag("harbor"), false)
@@ -9268,6 +9271,9 @@ try {
 } catch (e) {
   setTimeout(maybeLook, 0);
   console.error(e); const ldEl = document.getElementById("loading"); if (ldEl) ldEl.textContent = "3D 場景載入失敗（需要網路連線）。記帳功能仍可使用。（" + (e && e.message || e) + "）";
+  if (window.__PV === "haloB") { window.__no3d = true; const en = LANG === "en";   /* B 版（GPT 試玩）：瀏覽器開不了 3D 時，不要再叫人點地面走路 */
+    if (ldEl) { ldEl.innerHTML = `<div style="text-align:center;max-width:300px;line-height:1.6"><b>${en ? "This browser can't show the 3D scene right now." : "目前瀏覽器無法顯示 3D 場景。"}</b><br><small>${en ? "Bookkeeping still works." : "記帳功能仍可使用。"}</small><div style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><button type="button" id="no3dReload">${en ? "Reload the scene" : "重新載入場景"}</button><button type="button" class="ghost" id="no3dJob">${en ? "See the attendant's request" : "直接查看站務員委託"}</button></div></div>`;
+      ldEl.querySelector("#no3dReload").onclick = () => location.reload(); ldEl.querySelector("#no3dJob").onclick = () => pvStationJob(); } }
 }
 
 function buildScene(THREE, OrbitControls, GLTFLoader, POST) {
