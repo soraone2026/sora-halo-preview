@@ -9,6 +9,7 @@ export function createInkAudio(seed = 1) {
   let c = null, master = null, sfx = null, music = null, wg = null, wat = null, on = true, paused = false, nextNote = 0, windLv = 0, noise = null;
   try { on = localStorage.getItem("sle-sound") !== "0"; } catch (e) { }
   const root = 50 + (seed % 5);
+  let silent = null;
   function init() {
     if (c) return; const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; c = new AC();
     const out = c.createDynamicsCompressor(); out.threshold.value = -18; out.ratio.value = 4; out.connect(c.destination);
@@ -28,14 +29,21 @@ export function createInkAudio(seed = 1) {
   function brush(t, dur = 0.5) { const s = c.createBufferSource(); s.buffer = noise; const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.setValueAtTime(2400, t); bp.frequency.exponentialRampToValueAtTime(900, t + dur); const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(bp).connect(g).connect(sfx); s.start(t, Math.random() * 3); s.stop(t + dur + 0.05); }
   function chime(t, f, dur = 5) { const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); g.connect(sfx);
     for (const [k, gv] of [[1, 1], [2.71, 0.4], [4.95, 0.15]]) { const o = c.createOscillator(); o.frequency.value = f * k; const og = c.createGain(); og.gain.value = gv; o.connect(og).connect(g); o.start(t); o.stop(t + dur); } }
-  function loop() { if (!c || paused || !on) return; const t = c.currentTime;
-    if (t > nextNote) { const n = PENTA[Math.floor(Math.random() * 7)], harm = Math.random() < 0.35; pluck(t + 0.1, mtof(root + n), 0.55, 4, harm, music); if (Math.random() < 0.4) pluck(t + 0.9, mtof(root + PENTA[Math.floor(Math.random() * 7)]), 0.4, 3.5, false, music); nextNote = t + 5 + Math.random() * 7; } }
+  function loop() { if (!c || paused || !on) return; const t = c.currentTime; padOn();
+    if (t > nextNote) { let i = Math.floor(Math.random() * 7); const len = 2 + Math.floor(Math.random() * 3); for (let k = 0; k < len; k++) { i = Math.max(0, Math.min(8, i + (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 2)))); pluck(t + 0.1 + k * (0.45 + Math.random() * 0.35), mtof(root + PENTA[i]), 0.6 - k * 0.08, 4, Math.random() < 0.3, music); } nextNote = t + 3 + Math.random() * 4; } }
+  /* 熊：「這個城市還沒加上聲音」——iPhone 開著靜音鍵時 Web Audio 會被關掉：宣告成「播放」、再放一段無聲的 <audio> */
+  function unlockIOS() { try { if (navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback"; } catch (e) { }
+    if (!silent) { try { silent = new Audio(new URL("silence.wav", import.meta.url).href); silent.loop = true; silent.volume = 0.01; silent.setAttribute("playsinline", ""); } catch (e) { silent = false; } }
+    if (silent && silent.paused) { const p = silent.play(); if (p && p.catch) p.catch(() => { }); } }
+  /* 背景再豐富一點：很低的持續音（五度）＋比較常出現的琴音小樂句 */
+  let pad = null; function padOn() { if (pad || !c) return; pad = c.createGain(); pad.gain.value = 0.0001; pad.connect(music); for (const [m, g] of [[root - 24, 0.5], [root - 17, 0.32], [root - 12, 0.18]]) { const o = c.createOscillator(); o.type = "sine"; o.frequency.value = mtof(m); const og = c.createGain(); og.gain.value = g; o.connect(og).connect(pad); o.start(); }
+    const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 0.07; lg.gain.value = 0.018; lfo.connect(lg).connect(pad.gain); lfo.start(); pad.gain.setTargetAtTime(0.04, c.currentTime, 3); }
   setInterval(loop, 400);
   const fadeTo = (v) => { if (!c) return; master.gain.cancelScheduledValues(c.currentTime); master.gain.setTargetAtTime(v, c.currentTime, 0.4); };
   const now = () => (c ? c.currentTime : 0), ok = () => !!c && on && !paused;
   return {
     get on() { return on; },
-    gesture() { init(); if (!c) return; if (c.state === "suspended") c.resume(); if (on && !paused) fadeTo(0.9); },
+    gesture() { init(); if (!c) return; unlockIOS(); if (c.state === "suspended") c.resume(); if (on && !paused) fadeTo(0.9); },
     pause(force) { if (force) paused = true; if (c) fadeTo(0); },
     resume(force) { if (force) paused = false; if (c && on && !paused) { if (c.state === "suspended") c.resume(); fadeTo(0.9); } },
     toggle() { on = !on; try { localStorage.setItem("sle-sound", on ? "1" : "0"); } catch (e) { } if (on) this.resume(); else fadeTo(0); },

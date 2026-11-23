@@ -138,7 +138,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
 
   /* 熊：「新的墨色，比較亮的顏色，可以在比較少的印就解鎖」 */
   const INKS = [["ink", "墨", "Ink", INK, 0], ["cin", "朱砂", "Cinnabar", "#c8382a", 3], ["azu", "石青", "Azurite", "#2f6fb0", 6], ["mal", "石綠", "Malachite", "#2a9470", 10], ["gam", "藤黃", "Gamboge", "#e3a514", 15], ["gold", "金泥", "Gold", "#c99a32", 22]];
-  const sealN = () => Object.keys((FS && FS.paintState && FS.paintState().seals) || {}).length, inkOpen = (k) => { const q = INKS.find((x) => x[0] === k); return !!q && sealN() >= q[4]; };
+  const sealN = () => Object.keys((FS && FS.paintState && FS.paintState().seals) || {}).filter((k) => !k.startsWith("d:")).length, inkOpen = (k) => { const q = INKS.find((x) => x[0] === k); return !!q && sealN() >= q[4]; };
   let curInk = "ink"; try { curInk = localStorage.getItem("liubai-ink") || "ink"; } catch (e) { } if (!INKS.some((x) => x[0] === curInk)) curInk = "ink";
   const inkNow = () => (inkOpen(curInk) ? curInk : "ink");
   function tintBy(g, c) { const q = c && c !== "ink" && INKS.find((x) => x[0] === c); if (!q) return; const hue = new THREE.Color(q[3]), pc = new THREE.Color(PAPER), hsl = {};
@@ -563,10 +563,25 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     else { const gp = cl.pts.map((p) => groundAt(p[0], p[1])).filter(Boolean); if (gp.length >= 3) m = { k: "path", x: gp[0].x, z: gp[0].z, pts: gp.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)]) }; else { const s = skyAt(cl.cx, cl.cy); m = { k: "cloud", x: s.x, y: Math.max(14, s.y), z: s.z }; } }
     for (const key of ["x", "y", "z", "x2", "z2"]) if (m[key] != null) m[key] = +m[key].toFixed(2);
     if (inkNow() !== "ink") m.c = inkNow();
-    const r = FS && FS.paintMark ? FS.paintMark(m) : { ok: true, left: 9, id: "M" + Date.now() };
-    if (!r || !r.ok) { toast(L("今天的墨用完了。做一件小事、記一筆帳，墨就會多一點。", "You're out of ink for today. Do a little task or record something, and you'll get a bit more."), 4200); return; }
-    m.id = r.id; const it = buildMark(m, true); const c = it.g.position.clone(); if (m.k === "reed" || m.k === "path") c.set(m.x, 0.3, m.z); blotAt(c, 2.4); audio.dab(); audio.stroke();
-    toast(L(`畫成了${MARK_NAME[m.k][0]}　（今天還能畫 ${r.left} 筆）`, `It became ${MARK_NAME[m.k][1]}  (${r.left} strokes left today)`), 3200); album.grant("m:" + m.k); checkAll(); showGrowth(); bar(); }
+    if (pend) keepPend();   /* 熊：「筆觸不符合就浪費一滴墨」——畫完先給你看，按「留下」或過幾秒才真的用掉墨；「這筆不要」就收回 */
+    if (inkLeft() <= 0) { toast(L("今天的墨用完了。墨會隨著時間慢慢回來；做一件小事、記一筆帳、完成畫題也會多一點。", "You're out of ink for now. It comes back through the day — little tasks, a record, or today's theme add more."), 4600); return; }
+    m.id = "M" + Date.now().toString(36) + Math.floor(Math.random() * 1e4); const it = buildMark(m, true); const c = it.g.position.clone(); if (m.k === "reed" || m.k === "path") c.set(m.x, 0.3, m.z); blotAt(c, 2.4); audio.dab(); audio.stroke();
+    pend = { m, it, tm: setTimeout(keepPend, 7000) }; bar(); }
+  let pend = null, puOpen = false; try { puOpen = localStorage.getItem("liubai-pu") === "1"; } catch (e) { }
+  const inkLeft = () => (FS && FS.paintState ? Math.max(0, FS.paintAllow() - (FS.paintState().used || 0)) : 9) - (pend ? 1 : 0);
+  function keepPend() { const P = pend; if (!P) return; pend = null; clearTimeout(P.tm); const m = P.m, r = FS && FS.paintMark ? FS.paintMark(m) : { ok: true, left: 9, id: m.id };
+    if (!r || !r.ok) { dropMark(P.it); toast(L("今天的墨用完了。", "You're out of ink for today."), 3000); bar(); return; }
+    toast(L(`留下了${MARK_NAME[m.k][0]}　（今天還能畫 ${r.left} 筆）`, `Kept ${MARK_NAME[m.k][1]}  (${r.left} strokes left today)`), 2800); album.grant("m:" + m.k); themeCheck(m.k); checkAll(); showGrowth(); bar(); }
+  function dropMark(it) { scene.remove(it.g); const i = marks.indexOf(it); if (i >= 0) marks.splice(i, 1); }
+  function undoPend() { const P = pend; if (!P) return; pend = null; clearTimeout(P.tm); dropMark(P.it); audio.dab(); toast(L("收回了這一筆，墨還給你。", "Taken back — the ink is yours again."), 2400); bar(); }
+  /* 每日畫題：畫師每天出一句詩，畫出詩裡的東西就完成（記成 d:日期 這方「印」，不算在印譜裡），當天多 2 滴墨 */
+  const THEMES = [["plum", "牆角數枝梅，凌寒獨自開。", "王安石", "A few sprigs of plum by the wall, blooming alone in the cold."], ["lotus", "接天蓮葉無窮碧。", "楊萬里", "Lotus leaves meet the sky in endless green."],
+    ["shoot", "新竹高於舊竹枝。", "鄭板橋", "The new bamboo outgrows the old."], ["reed", "蒹葭蒼蒼，白露為霜。", "詩經", "Reeds grey-green, the white dew turned to frost."], ["geese", "雁字回時，月滿西樓。", "李清照", "When the geese write their way home, the moon fills the west tower."],
+    ["path", "曲徑通幽處。", "常建", "A winding path leads somewhere secluded."], ["cloud", "行到水窮處，坐看雲起時。", "王維", "Walk to where the water ends; sit and watch the clouds rise."], ["lantern", "東風夜放花千樹。", "辛棄疾", "The east wind sets a thousand trees of light in bloom tonight."]];
+  const THEME = THEMES[seedOf("theme:" + DAY) % THEMES.length];
+  const themeDone = () => !!(((FS && FS.paintState && FS.paintState().seals) || {})["d:" + DAY]);
+  function themeCheck(k) { if (k !== THEME[0] || themeDone() || !FS || !FS.paintSeal) return; FS.paintSeal("d:" + DAY); audio.seal();
+    setTimeout(() => toast(L(`今天的畫題完成了！「${THEME[1]}」——畫師多給你 2 滴墨。`, `Today's theme is done! "${THEME[3]}" — the painter gives you 2 more drops of ink.`), 6000), 1600); }
 
   /* ---------- 畫中人：畫裡湊齊某些景，就有人走進來；跟他說話，他送你一句詩 ---------- */
   const folkIn = {};   /* id → { p, x, z, mk } */
@@ -605,22 +620,26 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
 
   /* ---------- 下面那一條：起好的稿、描到幾成、今天還能畫幾筆 ---------- */
   const barEl = document.createElement("div"); barEl.className = "inkbar"; barEl.addEventListener("pointerdown", (e) => e.stopPropagation()); barEl.addEventListener("pointerup", (e) => e.stopPropagation()); document.body.append(barEl);
-  function bar() { const left = FS && FS.paintState ? Math.max(0, FS.paintAllow() - FS.paintState().used) : 0;
+  function bar() { const left = Math.max(0, inkLeft());
     if (mode === "trace" && sketch) { barEl.innerHTML = `<p>${L("從紅色小圈起筆，沿著每一條虛線刷過去", "Start at each red circle and brush along every dashed line")}<b>${Math.round(sketch.k * 100)}%</b></p><div class="ib-bar"><i></i></div>${inkChips()}<button class="btn" data-a="down" type="button">${L("先放下筆", "Put the brush down")}</button>`; barEl.querySelector(".ib-bar i").style.width = Math.round(sketch.k / 0.85 * 100) + "%"; }
     else if (mode === "free") { const se = (FS && FS.paintState && FS.paintState().seals) || {};
       const pu = PU.map(([k, g, w]) => `<span class="${se["m:" + k] ? "has" : ""}"><b>${g}</b><i>${w === "sky" ? L("天", "sky") : L("地", "gnd")}</i>${se["m:" + k] ? L(MARK_NAME[k][0].replace(/^一(枝|盞|池|條|排|行|朵)|^幾根/, ""), MARK_NAME[k][1].replace(/^(a|an) (sprig of |line of |row of |few )?/, "")) : "？"}</span>`).join("");
-      barEl.innerHTML = `<p>${L(`隨手畫。畫在虛線上面是「天」，下面是「地」。今天還能畫 <b>${left}</b> 筆。`, `Draw freely. Above the dashed line is sky, below is ground. <b>${left}</b> strokes left today.`)}</p><div class="ipu">${pu}</div>${inkChips()}<button class="btn" data-a="down" type="button">${L("放下筆", "Put the brush down")}</button>`; }
+      const th = `<p class="ithem ${themeDone() ? "ok" : ""}">${L(`今日畫題：「${THEME[1]}」（${THEME[2]}）${themeDone() ? "　✓ 完成" : ""}`, `Today's theme: "${THEME[3]}"${themeDone() ? "  ✓ done" : ""}`)}</p>`;
+      const pd = pend ? `<div class="ipend"><b>${L(`畫成了${MARK_NAME[pend.m.k][0]}`, `It became ${MARK_NAME[pend.m.k][1]}`)}</b><button class="btn primary" data-a="keep" type="button">${L("留下", "Keep")}</button><button class="btn" data-a="undo" type="button">${L("這筆不要", "Take it back")}</button></div>` : "";
+      barEl.innerHTML = `${pd}${th}<p class="ifree">${L(`虛線上面是「天」、下面是「地」・還能畫 <b>${left}</b> 筆`, `Above the dashed line is sky, below is ground · <b>${left}</b> left`)}</p>${puOpen ? `<div class="ipu">${pu}</div>` : ""}${inkChips()}<div class="irow"><button class="btn" data-a="pu" type="button">${L("筆譜", "Brush guide")} ${puOpen ? "▴" : "▾"}</button><button class="btn" data-a="down" type="button">${L("放下筆", "Put the brush down")}</button></div>`; }   /* 熊試玩：這一條太高、擋到畫的地方 → 筆譜收起來 */
     else if (sketch) barEl.innerHTML = `<p><small>${why}</small>${L(`畫師起好了稿：「${STROKE[sketch.base].name[0]}」。這一筆，你來描。`, `The painter has sketched "${STROKE[sketch.base].name[1]}". This stroke is yours to ink.`)}</p><button class="btn primary" data-a="trace" type="button">${L("拿起筆", "Pick up the brush")}</button>`;
     else barEl.innerHTML = "";
     barEl.classList.toggle("on", !!barEl.innerHTML); const b1 = barEl.querySelector('[data-a="trace"]'), b2 = barEl.querySelector('[data-a="down"]');
     if (b1) b1.onclick = () => { setMode("trace"); }; if (b2) b2.onclick = () => setMode(null);
     barEl.querySelectorAll("[data-col]").forEach((e) => { e.style.background = e.dataset.col; });
+    const bp = barEl.querySelector('[data-a="pu"]'); if (bp) bp.onclick = () => { puOpen = !puOpen; try { localStorage.setItem("liubai-pu", puOpen ? "1" : "0"); } catch (e) { } bar(); };
+    const bk = barEl.querySelector('[data-a="keep"]'), bu = barEl.querySelector('[data-a="undo"]'); if (bk) bk.onclick = () => keepPend(); if (bu) bu.onclick = () => undoPend();
     barEl.querySelectorAll("[data-ink]").forEach((b) => { b.onclick = () => { curInk = b.dataset.ink; try { localStorage.setItem("liubai-ink", curInk); } catch (e) { } audio.dab(); bar(); }; });
     if (penBtn) penBtn.textContent = L(`筆 ${left}`, `Brush ${left}`); }
   let penBtn = null;
   { const hud = $(".hud"), snd = $("#snd"), mk = (txt, title, fn, cls) => { const b = document.createElement("button"); b.className = "btn snd " + cls; b.type = "button"; b.textContent = txt; b.title = title; b.onclick = (e) => { e.stopPropagation(); fn(); }; hud.insertBefore(b, snd); return b; };
     penBtn = mk(L("筆", "Brush"), L("拿起筆隨手畫", "Pick up the brush"), () => setMode(mode === "free" ? null : "free"), "pen"); mk("印", L("印譜・題詩・長卷", "Seals · poem · scrolls"), () => album.open(), "seal"); }
-  function setMode(m) { mode = m; brush.set(!!m); document.body.classList.toggle("brushing", !!m);
+  function setMode(m) { if (m !== "free" && pend) keepPend(); mode = m; brush.set(!!m); document.body.classList.toggle("brushing", !!m);
     if (m === "trace" && sketch) focusSketch(true);
     else if (m === "free") { unfocus(); cam.pitch = Math.min(cam.pitch, 0.13); cam.want = Math.max(cam.want, SMALL ? 15 : 13); }   /* 低一點，天和地各佔一半 */
     else if (!m && sketch && focus) focusSketch(false);
@@ -633,7 +652,8 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     if (WX !== "clear") setTimeout(() => album.grant("w:" + WX), 2500);
     why = g.top ? L(WHY[g.top][0], WHY[g.top][1]) : L("硯台很安靜，今天這一筆是風送來的。", "The inkstone is quiet; today's stroke came on the wind.");
     if (g.offer && g.offer[0]) { sketch = makeSketch(strokeOf(g.offer[0]).k); if (sketch) focusSketch(false); }
-    checkAll(); bar(); showGrowth(); setTimeout(scrollCheck, 6000); }
+    checkAll(); bar(); showGrowth(); setTimeout(scrollCheck, 6000);
+    if (!themeDone()) setTimeout(() => say(L(`今天的畫題：「${THEME[1]}」——拿起右上角的「筆」，畫出詩裡的東西。`, `Today's theme: "${THEME[3]}" — pick up the Brush (top right) and paint what the poem describes.`), L("硯翁", "Old Inkstone"), 8000), 9000); }
 
   /* ---------- 紙紋：整個畫面蓋一層紙的纖維 ---------- */
   { const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c = cv.getContext("2d"), r = rngOf(77); c.fillStyle = "#808080"; c.fillRect(0, 0, 256, 256); for (let k = 0; k < 9000; k++) { const v = 110 + r() * 40; c.fillStyle = `rgba(${v},${v},${v},.5)`; c.fillRect(r() * 256, r() * 256, 1 + r() * 2, 1); }

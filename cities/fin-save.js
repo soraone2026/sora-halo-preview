@@ -187,7 +187,8 @@
      * - 印譜 seals{id: 第一次拿到的日期}、畫中人 met{id: 日期}、長卷 scrolls[{wk, url}]（最多 8 段） */
     paintState: function () { var s = read(), d = today(), P = (s && s.paint) || {}, allow = this.paintAllow();
       return { ok: !!s, used: P.d === d ? P.used || 0 : 0, allow: allow, marks: (P.marks || []).slice(), seals: JSON.parse(JSON.stringify(P.seals || {})), met: JSON.parse(JSON.stringify(P.met || {})), scrolls: (P.scrolls || []).slice() }; },
-    paintAllow: function () { var s = read(); if (!s) return 0; var d = today(), T = s.stars && s.stars.liubai, n = 3 + (T && T.d === d ? (T.got || []).length : 0);
+    paintAllow: function () { var s = read(); if (!s) return 0; var d = today(), T = s.stars && s.stars.liubai, n = 5 + (T && T.d === d ? (T.got || []).length : 0), hr = new Date().getHours();   /* 熊 2026-11-23：墨太少 → 底 5 滴，一天裡隨時間再回 4 滴，畫題完成再 +2 */
+      [8, 12, 16, 20].forEach(function (h) { if (hr >= h) n += 1; }); if (s.paint && s.paint.seals && s.paint.seals["d:" + d]) n += 2;
       if (((s.records && s.records.finance) || []).some(function (r) { return r && r.date === d; })) n += 2; return n; },
     paintMark: function (m) { var s = read(); if (!s || !m || !m.k) return null; var d = today(), P = s.paint = s.paint || {}; if (P.d !== d) { P.d = d; P.used = 0; } var allow = this.paintAllow();
       if ((P.used || 0) >= allow) return { ok: false, left: 0 }; P.used = (P.used || 0) + 1; P.marks = P.marks || []; m.id = m.id || ("M" + Date.now().toString(36) + Math.floor(Math.random() * 1e4)); m.day = d; P.marks.push(m); while (P.marks.length > 80) P.marks.shift();

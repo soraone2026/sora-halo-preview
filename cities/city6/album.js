@@ -23,12 +23,12 @@ export function createAlbum({ L, FS, toast, sound, inks, onGrant }) {
   /* 蓋一方印：畫面中間一方朱印「咚」地蓋下來，再縮到右上角 */
   function stamp(chars) { const s = document.createElement("div"); s.className = "stamp"; s.textContent = chars; if (chars.length > 2) s.classList.add("s3"); document.body.append(s); requestAnimationFrame(() => s.classList.add("on")); setTimeout(() => s.classList.add("out"), 1400); setTimeout(() => s.remove(), 2100); }
   function grant(id) { if (!FS || !FS.paintSeal) return false; const S = SEALS.find((x) => x[0] === id); if (!S || !FS.paintSeal(id)) return false;
-    stamp(S[1]); sound && sound(); const n = Object.keys(st().seals).length; if (n === 1) toast(L(`你的第一方印「${S[1]}」。右上角紅色的「印」打開印譜：在畫裡做過的事都會蓋一方印，還有題詩和每週的長卷。`, `Your first seal: "${S[1]}". The red 印 button (top right) opens your album — seals for what you've done in the painting, plus the poem and weekly scrolls.`), 9000);
+    stamp(S[1]); sound && sound(); const n = Object.keys(st().seals).filter((k) => !k.startsWith("d:")).length; if (n === 1) toast(L(`你的第一方印「${S[1]}」。右上角紅色的「印」打開印譜：在畫裡做過的事都會蓋一方印，還有題詩和每週的長卷。`, `Your first seal: "${S[1]}". The red 印 button (top right) opens your album — seals for what you've done in the painting, plus the poem and weekly scrolls.`), 9000);
     else toast(L(`印譜多了一方「${S[1]}」（${n} / ${SEALS.length}）`, `A new seal for your album: "${S[1]}" (${n} / ${SEALS.length})`), 4200); try { onGrant && onGrant(n); } catch (e) { } return true; }
   let box = null;
   function open(tab = "seal") { close(); const P = st(), en = L("", "x") === "x";
-    box = document.createElement("div"); box.className = "albumov"; box.addEventListener("pointerdown", (e) => e.stopPropagation()); box.addEventListener("pointerup", (e) => e.stopPropagation());
-    const got = Object.keys(P.seals || {}).length;
+    box = document.createElement("div"); box.className = "albumov"; box.addEventListener("click", (e) => { if (e.target === box) close(); }); box.addEventListener("pointerdown", (e) => e.stopPropagation()); box.addEventListener("pointerup", (e) => e.stopPropagation());
+    const got = Object.keys(P.seals || {}).filter((k) => !k.startsWith("d:")).length;   /* d:日期 是每日畫題，不算在印譜裡 */
     const seals = SEALS.map(([id, ch, hint]) => { const has = !!(P.seals || {})[id]; return `<button type="button" class="sl ${has ? "has" : ""}" data-h="${has ? `${ch}・${(P.seals || {})[id]}` : hint}"><span>${has ? ch : "？"}</span></button>`; }).join("");
     const lines = POEM_ORDER.map((k) => (P.met || {})[k] ? `<p>${L(PEOPLE[k].line[0], PEOPLE[k].line[1])}</p>` : `<p class="blank">${L("（還沒遇見" + PEOPLE[k].name[0] + "）", "(not yet met " + PEOPLE[k].name[1] + ")")}</p>`).join("");
     const scrolls = (P.scrolls || []).slice().reverse().map((x) => `<figure><img alt="" data-src="${x.wk}"><figcaption>${x.wk}</figcaption></figure>`).join("") || `<p class="blank">${L("每個禮拜第一次來，會自動拍一段長卷收在這裡。", "Each week, your first visit adds a length of scroll here.")}</p>`;
