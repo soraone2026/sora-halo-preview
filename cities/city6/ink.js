@@ -33,7 +33,7 @@ function todayStr() { const q = QS.get("day"); if (q && /^\d{4}-\d{2}-\d{2}$/.te
 function seedOf(str) { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; }
 function rngOf(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
-const DAY = todayStr(), rnd = rngOf(seedOf(CITY + ":" + DAY)), LAND = 40, WIND_T = 26;
+const DAY = todayStr(), rnd = rngOf(seedOf(CITY + ":" + DAY)), LAND = 60, WIND_T = 26;   /* 熊 2026-11-23：原本 40，活動範圍太小、沒地方畫 */
 const PAPER = "#ece4d4", INK = "#1d1a18", CINNABAR = "#c03a2b";
 /* 天氣（跟著日期）：晴、雨、霧；冬天才會下雪。?wx=rain 可以預覽 */
 const WX = (() => { const q = QS.get("wx"); if (["clear", "rain", "mist", "snow"].includes(q)) return q; const r = rngOf(seedOf("wx:" + DAY))(), m = +DAY.slice(5, 7), winter = m === 12 || m <= 2; return r < 0.58 ? "clear" : r < 0.78 ? "rain" : r < 0.9 ? "mist" : winter ? "snow" : "rain"; })();
@@ -131,11 +131,11 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   const streamX = (z) => 22 + Math.sin(z * 0.08) * 3;
   const waterT = canvasTex(256, 256, (c, w, h) => { c.fillStyle = "#c9cfcc"; c.fillRect(0, 0, w, h); const r = rngOf(51); for (let k = 0; k < 70; k++) { c.strokeStyle = `rgba(40,50,56,${0.08 + r() * 0.16})`; c.lineWidth = 1 + r() * 1.6; const y = r() * h, x = r() * w; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 18, y - 3, x + 36, y); c.stroke(); } });
   waterT.wrapS = waterT.wrapT = THREE.RepeatWrapping;
-  { const pos = [], uv = [], idx = []; let acc = 0, prev = null; const N = 60;
-    for (let i = 0; i <= N; i++) { const z = -48 + i / N * 96, x = streamX(z); if (prev) acc += Math.hypot(x - prev[0], z - prev[1]); prev = [x, z]; pos.push(x - 2.2, 0.04, z, x + 2.2, 0.04, z); uv.push(0, acc / 6, 1, acc / 6); if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } }
+  { const pos = [], uv = [], idx = []; let acc = 0, prev = null; const N = 84;
+    for (let i = 0; i <= N; i++) { const z = -70 + i / N * 140, x = streamX(z); if (prev) acc += Math.hypot(x - prev[0], z - prev[1]); prev = [x, z]; pos.push(x - 2.2, 0.04, z, x + 2.2, 0.04, z); uv.push(0, acc / 6, 1, acc / 6); if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } }
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
     scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: waterT, side: THREE.DoubleSide })));
-    for (const side of [-1, 1]) { const pts = []; for (let i = 0; i <= N; i++) { const z = -48 + i / N * 96; pts.push(new V3(streamX(z) + side * 2.3, 0.07, z)); }
+    for (const side of [-1, 1]) { const pts = []; for (let i = 0; i <= N; i++) { const z = -70 + i / N * 140; pts.push(new V3(streamX(z) + side * 2.3, 0.07, z)); }
       const bank = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.09, 4, false), new THREE.MeshBasicMaterial({ color: "#2a2622" })); scene.add(bank); } }
 
   const obstacles = [];
@@ -621,78 +621,73 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   const normalFov = () => innerWidth / innerHeight < 0.8 ? 62 : 50;
   function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; if (!cut) camera.fov = normalFov(); camera.updateProjectionMatrix(); }
 
-  /* ---------- 過場（熊 2026-11-23：「每次都播，但可以按略過」）----------
-   * 一、墨色的星球上浮著一卷收起來的畫（另一個小場景）。按「穿過星門」：畫卷朝你攤開、鏡頭貼上紙面，紙白一閃。
-   * 二、回到城的上空：紙上還是空的。一滴墨落下，從中間暈開；墨走過的地方，東西像立體書一樣一個個立起來。
-   * 三、遠山、日、霧最後淡進來；畫卷兩端的軸往兩邊退開，鏡頭俯衝進畫裡，接到你站的地方。 */
-  const CUT_T = { sw: 2.8, drop: 3.0, ink: 3.4, spread: 3.0, far: 5.4, dive: 6.6, end: 9.0 }, SPREAD_P = 1.4;   /* 墨先慢慢暈、越暈越快：中間的東西一個一個立起來 */
-  let sceneB = null, camB = null, scrollB = null, cutItems = null, cutFar = null, inkRing = null, inkDrop = null, rods = null;
-  function buildPlanet() { sceneB = new THREE.Scene(); sceneB.background = new THREE.Color("#ddd3c1");
-    const neb = spr(blotT, "#ffffff", 260, 0.5); neb.position.set(-60, 40, -220); sceneB.add(neb); const neb2 = spr(blotT, "#ffffff", 180, 0.35); neb2.position.set(90, -10, -200); sceneB.add(neb2);
-    { const n = 700, pos = new Float32Array(n * 3), r = rngOf(88); for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, b = Math.acos(r() * 2 - 1), d = 120 + r() * 120; pos.set([Math.sin(b) * Math.cos(a) * d, Math.cos(b) * d, Math.sin(b) * Math.sin(a) * d], i * 3); }
-      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); sceneB.add(new THREE.Points(g, new THREE.PointsMaterial({ color: "#2a2420", size: 1.3, sizeAttenuation: true, fog: false }))); }   /* 紙上的星：黑點 */
-    const sunB = spr(canvasTex(128, 128, (c) => { c.fillStyle = CINNABAR; c.beginPath(); c.arc(64, 64, 58, 0, 7); c.fill(); }), "#ffffff", 30, 0.95); sunB.position.set(70, 45, -120); sceneB.add(sunB);
-    const planet = outline(mesh(new THREE.SphereGeometry(26, 48, 32), 0.72), 0.03); planet.position.set(0, -36, -6); sceneB.add(planet);
-    const ringB = new THREE.Mesh(new THREE.RingGeometry(33, 46, 96), new THREE.MeshBasicMaterial({ color: "#2a2420", map: brushT, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })); ringB.position.copy(planet.position); ringB.rotation.set(-1.25, 0.2, 0.3); sceneB.add(ringB);
-    const moonB = outline(mesh(new THREE.SphereGeometry(4, 24, 16), 0.3), 0.05); moonB.position.set(-38, -6, -40); sceneB.add(moonB);
-    /* 畫卷：左軸固定，紙往右攤開，右邊是捲著的那一卷 */
-    const g = new THREE.Group(); g.scale.setScalar(2.2); sceneB.add(g); const W = 16, H = 6;
-    const pT = canvasTex(1024, 384, (c, w, h) => { c.fillStyle = "#efe7d6"; c.fillRect(0, 0, w, h); const r = rngOf(61); for (let k = 0; k < 2200; k++) { c.fillStyle = `rgba(120,100,80,${r() * 0.05})`; c.fillRect(r() * w, r() * h, 2, 1); }
-      c.strokeStyle = "rgba(90,84,76,.55)"; c.lineWidth = 2; for (const [b, a, sd] of [[190, 70, 3], [230, 50, 7]]) { const rr = rngOf(sd); c.beginPath(); let y = b; c.moveTo(0, y); for (let x = 0; x <= w; x += 32) { y = Math.max(80, Math.min(260, y + (rr() - 0.5) * a)); c.lineTo(x, y); } c.stroke(); }
-      c.lineWidth = 1.5; for (const x0 of [300, 640, 760]) { c.beginPath(); c.moveTo(x0, 330); c.lineTo(x0 + 4, 250); c.stroke(); for (let k = 0; k < 3; k++) { c.beginPath(); c.ellipse(x0 + 4, 258 - k * 18, 26 - k * 5, 6, 0, 0, 7); c.stroke(); } }
-      c.beginPath(); c.moveTo(470, 330); c.lineTo(470, 296); c.lineTo(500, 280); c.lineTo(530, 296); c.lineTo(530, 330); c.stroke(); c.beginPath(); c.moveTo(0, 340); c.quadraticCurveTo(w / 2, 320, w, 350); c.stroke();
-      c.fillStyle = CINNABAR; c.fillRect(w - 70, 30, 38, 38); c.fillStyle = "#efe7d6"; c.font = "bold 24px serif"; c.textAlign = "center"; c.fillText("白", w - 51, 58); });
-    const sg = new THREE.PlaneGeometry(W, H); sg.translate(W / 2, 0, 0); const sheet = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ map: pT, side: THREE.DoubleSide })); sheet.position.x = -W / 2; g.add(sheet);
-    const rodM = new THREE.MeshBasicMaterial({ color: "#5a3d24" }), rollM = new THREE.MeshBasicMaterial({ color: "#e8dfcc", map: brushT });
-    const rodL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, H + 1.2, 12), rodM); rodL.position.x = -W / 2; g.add(rodL);
-    const roll = new THREE.Group(); roll.add(outline(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, H, 24), rollM), 0.04)); roll.add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, H + 1.2, 12), rodM)); g.add(roll);
-    for (const y of [H / 2 + 0.6, -H / 2 - 0.6]) for (const R of [rodL, roll]) { const k = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 8), rodM); k.position.y = y; R.add(k); }
-    scrollB = { g, sheet, roll, W, H, set(u) { sheet.scale.x = Math.max(0.001, u); roll.position.x = -W / 2 + W * u + 0.55; } }; scrollB.set(0.02);
-    camB = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 2000); }
-  /* 城裡每樣東西：高的像立體書立起來，扁的、浮著的從中間長開；遠山、日、霧最後淡進來 */
-  function prepCity() { cutItems = []; cutFar = []; const bb = new THREE.Box3(), sz = new V3(), ct = new V3();
-    for (const o of scene.children) { if (o === ground || o.isLight || o === inkRing || o === inkDrop || o === wxPts || o.isPoints) continue;
-      const mt = o.material; if (mt && mt.fog === false) { if (o.geometry && o.geometry.type === "SphereGeometry") continue; cutFar.push({ m: mt, op: mt.opacity, tr: mt.transparent }); mt.transparent = true; mt.opacity = 0; continue; }
-      if (o.isSprite && !o.visible) continue; bb.setFromObject(o); if (bb.isEmpty()) continue; bb.getSize(sz); bb.getCenter(ct); const d = Math.hypot(ct.x, ct.z); if (d > LAND + 30) continue;
-      const tall = !o.isSprite && sz.y > 0.6, x = Math.min(1, d / (LAND + 15)), ts = CUT_T.ink + CUT_T.spread * Math.pow(x, 1 / SPREAD_P);
-      cutItems.push({ o, tall, ts, s: o.scale.clone(), rx: o.rotation.x, py: o.position.y, base: bb.min.y, off: o.position.y - bb.min.y }); }
-    if (!inkRing) { inkRing = new THREE.Mesh(new THREE.PlaneGeometry(2 * (LAND + 25), 2 * (LAND + 25)), new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uR: { value: 0 }, uFade: { value: 1 }, uCol: { value: new THREE.Color("#1d1a18") } },
-        vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
-        fragmentShader: "uniform float uR; uniform float uFade; uniform vec3 uCol; varying vec2 vP; void main(){ float d = length(vP); float a = atan(vP.y, vP.x); float n = sin(a*7.0+1.3)*0.9 + sin(a*13.0+4.1)*0.6 + sin(a*23.0+uR*0.3)*0.35 + sin(d*0.9)*0.4; float e = uR + n*min(1.5, 0.06*uR + 0.25); float inside = smoothstep(e+0.5, e-0.7, d); float wet = exp(-max(e-d,0.0)/1.8); float al = inside*(0.14 + 0.7*wet)*uFade; if (al < 0.003) discard; gl_FragColor = vec4(uCol, al); }" }));
-      inkRing.rotation.x = -Math.PI / 2; inkRing.position.y = 0.08; inkRing.renderOrder = 3; scene.add(inkRing);
-      inkDrop = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12), new THREE.MeshBasicMaterial({ color: "#1d1a18" })); inkDrop.scale.y = 1.5; scene.add(inkDrop); }
-    inkRing.visible = true; inkRing.material.uniforms.uR.value = 0; inkRing.material.uniforms.uFade.value = 1; inkDrop.visible = false; cutPose(0); }
+  /* ---------- 過場（熊 2026-11-23 第二版：「旁邊要是星際宇宙」「畫卷由單一邊拉開，轉動的時候上面的東西一個一個立起來」）----------
+   * 一、深色的宇宙、星星、遠處一顆帶環的星球；整座城捲成一卷畫，直直立在太空裡。
+   * 二、按「穿過星門」：畫卷從左邊那一端被拉開，城裡的東西平平地畫在紙上。
+   * 三、整幅畫往後倒、轉成平放；轉的時候，紙上的東西從中間往外一個一個立起來。
+   * 四、天從宇宙變回紙色，遠山、日、霧淡進來；鏡頭俯衝進畫裡，接到你站的地方。每次都播，「略過」一直按得到。 */
+  const CUT_T = { unroll: 2.6, tilt: 2.7, tiltDur: 2.8, sky: 5.3, skyDur: 1.4, dive: 6.5, end: 9.0 }, SHEET = LAND + 6, SPACE = new THREE.Color("#10131f"), PAPER_C = new THREE.Color(PAPER);
+  let space = null, spaceMats = [], townRoot = null, sheetG = null, cutItems = null, cutFar = null, skyMesh = null, savedFog = null, roll = null, sheetMesh = null, skyOp = null;
+  function buildSpace() { space = new THREE.Group(); scene.add(space); const r = rngOf(88), add = (o) => { space.add(o); const m = o.material; m.transparent = true; spaceMats.push([m, m.opacity]); return o; };
+    { const n = 1600, pos = new Float32Array(n * 3), col = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, b = Math.acos(r() * 2 - 1), d = 800 + r() * 500; pos.set([Math.sin(b) * Math.cos(a) * d, Math.cos(b) * d, Math.sin(b) * Math.sin(a) * d], i * 3); const w = 0.7 + r() * 0.3, g = r() < 0.15; col.set(g ? [1, 0.85 * w, 0.55 * w] : [w, w, w * 1.05], i * 3); }
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.BufferAttribute(col, 3)); add(new THREE.Points(g, new THREE.PointsMaterial({ size: 2.2, sizeAttenuation: false, vertexColors: true, fog: false, depthWrite: false }))); }
+    for (const [x, y, z, sc, c, op] of [[-500, 300, -900, 900, "#3a3f6a", 0.35], [600, -100, -800, 700, "#5a3a52", 0.28], [100, 500, -700, 600, "#2f4a5a", 0.3]]) { const n = spr(softT, c, sc, op, { fog: false, depthWrite: false }); n.position.set(x, y, z); add(n); }
+    const pl = add(new THREE.Mesh(new THREE.SphereGeometry(210, 48, 32), new THREE.MeshBasicMaterial({ color: "#8a8f9c", map: brushT, fog: false }))); pl.position.set(-160, -330, -720);
+    const rg = add(new THREE.Mesh(new THREE.RingGeometry(270, 380, 120), new THREE.MeshBasicMaterial({ color: "#c9b892", map: brushT, side: THREE.DoubleSide, opacity: 0.55, fog: false, depthWrite: false }))); rg.position.copy(pl.position); rg.rotation.set(-1.2, 0.25, 0.35);
+    const mo = add(new THREE.Mesh(new THREE.SphereGeometry(38, 32, 20), new THREE.MeshBasicMaterial({ color: "#d8d0c0", map: brushT, fog: false }))); mo.position.set(420, 220, -760);
+    const sn = spr(canvasTex(128, 128, (c) => { c.fillStyle = CINNABAR; c.beginPath(); c.arc(64, 64, 58, 0, 7); c.fill(); }), "#ffffff", 70, 0.95, { fog: false }); sn.position.set(-520, 260, -820); add(sn); }
+  /* 城裡每樣東西搬進一個「畫卷」群組，平平地畫在紙上 */
+  function prepCut() { skyMesh = scene.children.find((o) => o.geometry && o.geometry.parameters && o.geometry.parameters.radius === 1000); if (skyMesh) { skyOp = [skyMesh.material.opacity, skyMesh.material.transparent]; skyMesh.visible = false; }
+    savedFog = [scene.fog.near, scene.fog.far]; scene.fog.near = 5000; scene.fog.far = 9000; scene.background = SPACE.clone(); buildSpace();
+    townRoot = new THREE.Group(); cutItems = []; cutFar = []; const bb = new THREE.Box3(), sz = new V3(), ct = new V3(), hr = rngOf(5150);
+    for (const o of scene.children.slice()) { if (o === skyMesh || o === space || o.isLight || o === wxPts || o === ground) continue;
+      const mt = o.material; if (mt && mt.fog === false) { cutFar.push({ m: mt, op: mt.opacity, tr: mt.transparent }); mt.transparent = true; mt.opacity = 0; continue; }
+      if (o.isSprite && !o.visible) continue; bb.setFromObject(o); if (bb.isEmpty()) continue; bb.getSize(sz); bb.getCenter(ct); if (Math.hypot(ct.x, ct.z) > SHEET + 4) continue;
+      const tall = !o.isSprite && sz.y > 0.6, d = Math.min(1, Math.hypot(ct.x, ct.z) / SHEET);
+      cutItems.push({ o, tall, spr: !!o.isSprite, x: ct.x, ts: CUT_T.tilt + 0.25 + (d * 0.85 + hr() * 0.15) * CUT_T.tiltDur, s: o.scale.clone(), rx: o.rotation.x, py: o.position.y, pz: o.position.z, base: bb.min.y, off: o.position.y - bb.min.y, vis: o.visible }); townRoot.add(o); }
+    ground.visible = false;
+    /* 紙、裱邊、左邊固定的軸、右邊捲著的那一卷 */
+    sheetG = new THREE.Group(); townRoot.add(sheetG); const pt = groundT.clone(); pt.repeat.set(5, 5); pt.needsUpdate = true;
+    const sg = new THREE.PlaneGeometry(2 * SHEET, 2 * SHEET); sg.rotateX(-Math.PI / 2); sg.translate(SHEET, 0, 0); sheetMesh = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ map: pt, side: THREE.DoubleSide })); sheetMesh.position.set(-SHEET, -0.15, 0); sheetG.add(sheetMesh);
+    const silk = new THREE.MeshBasicMaterial({ color: "#8f8676", map: brushT }); for (const zz of [-SHEET - 1.5, SHEET + 1.5]) { const b = new THREE.Mesh(new THREE.BoxGeometry(2 * SHEET, 0.2, 3), silk); b.geometry.translate(SHEET, 0, 0); b.position.set(-SHEET, -0.1, zz); sheetMesh.add(b); b.position.set(0, 0.05, zz); }
+    const rodM = new THREE.MeshBasicMaterial({ color: "#4a3220" }), knob = (g, z) => { const k = new THREE.Mesh(new THREE.SphereGeometry(1.4, 14, 10), rodM); k.position.z = z; g.add(k); };
+    const rodL = new THREE.Group(); rodL.add(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 2 * SHEET + 10, 14).rotateX(Math.PI / 2), rodM)); knob(rodL, SHEET + 5); knob(rodL, -SHEET - 5); rodL.position.set(-SHEET, 0.6, 0); sheetG.add(rodL);
+    roll = new THREE.Group(); const rb = outline(new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 2 * SHEET + 3, 28).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: "#e9e0cc", map: brushT })), 0.03); roll.add(rb);
+    roll.add(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 2 * SHEET + 10, 14).rotateX(Math.PI / 2), rodM)); knob(roll, SHEET + 5); knob(roll, -SHEET - 5); sheetG.add(roll);
+    scene.add(townRoot); townRoot.rotation.x = Math.PI / 2; unrollTo(0.015); cutPose(0); }
+  function unrollTo(u) { const xe = -SHEET + 2 * SHEET * u; sheetMesh.scale.x = Math.max(0.002, u); roll.position.set(xe + 4, 4, 0); roll.rotation.z = -u * 2 * SHEET / 4;
+    for (const it of cutItems) it.o.visible = it.vis && it.x < xe - 1; }
   const backOut = (k) => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
-  function cutPose(T) { for (const it of cutItems) { const k = Math.max(0, Math.min(1, (T - it.ts) / 0.75)), o = it.o;
-      if (k >= 1) { o.scale.copy(it.s); o.rotation.x = it.rx; o.position.y = it.py; continue; } const b = k <= 0 ? 0.001 : Math.max(0.001, backOut(k));
-      if (it.tall) { o.scale.set(it.s.x, it.s.y * b, it.s.z); o.position.y = it.base + it.off * b; o.rotation.x = it.rx - (1 - Math.min(1, b)) * 0.5; }
-      else o.scale.copy(it.s).multiplyScalar(b); o.visible = o.visible; } }
-  function cutRestore() { if (cutItems) { for (const it of cutItems) { it.o.scale.copy(it.s); it.o.rotation.x = it.rx; it.o.position.y = it.py; } cutItems = null; }
-    if (cutFar) { for (const f of cutFar) { f.m.opacity = f.op; f.m.transparent = f.tr; } cutFar = null; } if (inkRing) inkRing.visible = false; if (inkDrop) inkDrop.visible = false;
-    if (rods) { rods.forEach((r) => r.remove()); rods = null; } const fl = $("#flash"); if (fl) fl.style.opacity = 0; }
+  function cutPose(T) { for (const it of cutItems) { const o = it.o, k = Math.max(0, Math.min(1, (T - it.ts) / 0.7));
+      if (!it.tall && !it.spr) continue; if (k >= 1) { o.scale.copy(it.s); o.rotation.x = it.rx; o.position.y = it.py; o.position.z = it.pz; continue; } const b = k <= 0 ? 0.002 : Math.max(0.002, backOut(k));
+      if (it.tall) { const a = Math.PI / 2 * (1 - (k <= 0 ? 0 : backOut(k)));   /* 立體書：平躺在紙上（側面朝外），轉起來站好 */
+        o.scale.copy(it.s); o.rotation.x = it.rx - a; o.position.y = it.base + it.off * Math.cos(a); o.position.z = it.pz - it.off * Math.sin(a); } else o.scale.copy(it.s).multiplyScalar(b); } }
+  function cutRestore() { if (cutItems) { for (const it of cutItems) { const o = it.o; o.scale.copy(it.s); o.rotation.x = it.rx; o.position.y = it.py; o.position.z = it.pz; o.visible = it.vis; scene.add(o); } cutItems = null; }
+    if (townRoot) { scene.remove(townRoot); townRoot = null; } if (cutFar) { for (const f of cutFar) { f.m.opacity = f.op; f.m.transparent = f.tr; } cutFar = null; }
+    if (space) { scene.remove(space); space = null; spaceMats = []; } scene.background = null; if (savedFog) { scene.fog.near = savedFog[0]; scene.fog.far = savedFog[1]; savedFog = null; }
+    if (skyMesh) { skyMesh.visible = true; if (skyOp) { skyMesh.material.opacity = skyOp[0]; skyMesh.material.transparent = skyOp[1]; } }
+    ground.visible = true; ground.material.transparent = false; ground.material.opacity = 1; }
   const _ca = new V3(), _cb = new V3(), _cc = new V3();
   function endCut() { if (!cut) return; cut = null; cutRestore(); camera.fov = normalFov(); camera.updateProjectionMatrix(); $("#gate").hidden = true; document.body.classList.remove("cutting"); const h = $("#hint"); h.classList.remove("off"); setTimeout(() => h.classList.add("off"), 12000); setTimeout(arrive, 900); }
-  function runCut(dt, fpos, flook) { cut.t += dt; const T = cut.t, fl = $("#flash");
-    if (cut.ph === "wait" || T < CUT_T.sw) { cut.alt = true; camB.aspect = innerWidth / innerHeight; camB.updateProjectionMatrix(); scrollB.g.position.y = Math.sin(performance.now() / 1300) * 0.25;
-      const fv = camB.fov * Math.PI / 360, fh = Math.atan(Math.tan(fv) * camB.aspect), near = 0.92 * 2.2 * Math.min(scrollB.H / 2 / Math.tan(fv), scrollB.W / 2 / Math.tan(fh));
-      if (cut.ph === "wait") { const a = T * 0.08 - 0.4, R = camB.aspect < 0.8 ? 62 : 46; camB.position.set(Math.sin(a) * R, 8 + Math.sin(T * 0.2) * 2, Math.cos(a) * R); camB.lookAt(0, camB.aspect < 0.8 ? -14 : -4, 0); cut.from = camB.position.clone(); return; }
-      const k1 = ease(Math.min(1, T / 1.2)), k3 = ease(Math.max(0, (T - 1.9) / 0.8)); _ca.copy(cut.from).lerp(_cc.set(0, 0.8, camB.aspect < 0.8 ? 60 : 40), k1).lerp(_cc.set(0, 0, near), k3); camB.position.copy(_ca); _cb.set(0, -6 * (1 - k1), 0); camB.lookAt(_cb);
-      scrollB.set(Math.max(0.02, ease(Math.max(0, Math.min(1, (T - 0.6) / 1.4))))); if (fl) fl.style.opacity = Math.max(0, Math.min(1, (T - 2.35) / 0.45)); return; }
-    if (cut.alt) { cut.alt = false; if (!cutItems) prepCity(); if (!rods) rods = ["l", "r"].map((sd) => { const d = document.createElement("div"); d.className = "cutrod " + sd; document.body.append(d); return d; }); }
-    const H0 = camera.aspect < 0.8 ? [0, 42, 50] : [0, 30, 40]; if (fl) fl.style.opacity = Math.max(0, 1 - (T - CUT_T.sw) / 0.5);
-    /* 一滴墨落下，暈開 */
-    const kd = (T - CUT_T.drop) / (CUT_T.ink - CUT_T.drop); inkDrop.visible = kd > 0 && kd < 1; if (inkDrop.visible) inkDrop.position.set(0, 34 * (1 - kd * kd), 0);
-    if (T >= CUT_T.ink && !cut.dropped) { cut.dropped = true; audio.stroke(); blotAt(new V3(0, 0.3, 0), 6); }
-    const ks = Math.max(0, Math.min(1, (T - CUT_T.ink) / CUT_T.spread)); inkRing.material.uniforms.uR.value = (LAND + 15) * Math.pow(ks, SPREAD_P); inkRing.material.uniforms.uFade.value = 1 - Math.max(0, Math.min(1, (T - (CUT_T.dive - 0.2)) / 0.9));
-    cutPose(T); if (cutItems.some((it) => T > it.ts && T - dt <= it.ts && it.tall)) audio.dab();
-    const kf = Math.max(0, Math.min(1, (T - CUT_T.far) / 1.4)); for (const f of cutFar) f.m.opacity = f.op * kf;
-    /* 畫卷兩端的軸往兩邊退開；鏡頭俯衝進畫裡 */
-    const kr = ease(Math.max(0, Math.min(1, (T - CUT_T.dive) / 1.1))); if (rods) { rods[0].style.transform = `translateX(${-kr * 60}vw)`; rods[1].style.transform = `translateX(${kr * 60}vw)`; rods.forEach((r) => { r.style.opacity = 1 - kr; }); }
-    const kv = ease(Math.max(0, Math.min(1, (T - CUT_T.dive) / (CUT_T.end - CUT_T.dive)))); _ca.set(...H0).lerp(fpos, kv); _ca.y += Math.sin(kv * Math.PI) * 4; camera.position.copy(_ca); _cb.set(0, 0, -6).lerp(flook, kv); camera.lookAt(_cb);
-    if (T >= CUT_T.end) endCut(); }
+  function runCut(dt, fpos, flook) { cut.t += dt; const T = cut.t; if (!townRoot) prepCut();
+    camera.aspect = innerWidth / innerHeight; const fv = camera.fov * Math.PI / 360, fh = Math.atan(Math.tan(fv) * camera.aspect), Dfit = 0.8 * SHEET / Math.tan(Math.min(fv, fh)), H0 = camera.aspect < 0.8 ? [0, 85, 110] : [0, 52, 72];
+    if (cut.ph === "wait") { const a = Math.sin(T * 0.12) * 0.55; camera.position.set(-SHEET + Math.sin(a) * Dfit * 0.75, 8 + Math.sin(T * 0.2) * 4, Math.cos(a) * Dfit * 0.75); camera.lookAt(-SHEET + 6, 0, 0); townRoot.position.y = Math.sin(T * 0.6) * 1.2; return; }
+    /* 二、從左邊那一端拉開 */
+    const ku = ease(Math.min(1, T / CUT_T.unroll)); unrollTo(Math.max(0.015, ku)); townRoot.position.y *= 0.95;
+    const kt = ease(Math.max(0, Math.min(1, (T - CUT_T.tilt) / CUT_T.tiltDur))); townRoot.rotation.x = Math.PI / 2 * (1 - kt);
+    if (T >= CUT_T.tilt && !cut.tilted) { cut.tilted = true; audio.stroke(); }
+    cutPose(T); if (cutItems.some((it) => it.tall && T > it.ts && T - dt <= it.ts)) audio.dab();
+    /* 四、宇宙變回紙色 */
+    const ks = Math.max(0, Math.min(1, (T - CUT_T.sky) / CUT_T.skyDur)); scene.background.copy(SPACE).lerp(PAPER_C, ks); for (const [m, op] of spaceMats) m.opacity = op * (1 - ks); for (const f of cutFar) f.m.opacity = f.op * ks;
+    if (ks > 0) { if (skyMesh) { skyMesh.visible = true; skyMesh.material.transparent = true; skyMesh.material.opacity = ks; } ground.visible = true; ground.material.transparent = true; ground.material.opacity = ks; }
+    /* 鏡頭：跟著拉開的那一端 → 正面看整幅 → 跟著倒下去變俯瞰 → 俯衝進畫裡 */
+    const cx = -SHEET * (1 - ku) * 0.9; _ca.set(cx, 0, Dfit * (1.15 - 0.15 * ku)); _cb.set(cx, 0, 0);
+    if (kt > 0) { _ca.lerp(_cc.set(...H0), kt); _ca.y += Math.sin(kt * Math.PI) * 25; }
+    const kv = ease(Math.max(0, Math.min(1, (T - CUT_T.dive) / (CUT_T.end - CUT_T.dive)))); if (kv > 0) { _ca.lerp(fpos, kv); _cb.lerp(flook, kv); const kf = kv * kv; scene.fog.near = 5000 + (savedFog[0] - 5000) * kf; scene.fog.far = 9000 + (savedFog[1] - 9000) * kf; }   /* 霧等鏡頭衝下去才回來，不然整幅畫會白掉 */
+    camera.position.copy(_ca); camera.lookAt(_cb); if (T >= CUT_T.end) endCut(); }
   if (cut) { $("#gate").hidden = false; document.body.classList.add("cutting"); $("#hint").classList.add("off");
     $("#gGo").textContent = L("🌀 穿過星門", "🌀 Through the star gate"); $("#gSub").textContent = L("訊號從一幅沒畫完的畫裡傳來。", "The signal comes from inside an unfinished painting."); $("#gTitle").textContent = L("留白城", "LIUBAI"); $("#gSkip").textContent = L("略過 ›", "Skip ›");
-    buildPlanet(); $("#gGo").onclick = (e) => { e.stopPropagation(); audio.gesture(); audio.fall(); cut.ph = "run"; cut.t = 0; $("#gate").classList.add("running"); };
+    $("#gGo").onclick = (e) => { e.stopPropagation(); audio.gesture(); audio.fall(); cut.ph = "run"; cut.t = 0; $("#gate").classList.add("running"); };
     $("#gSkip").onclick = (e) => { e.stopPropagation(); audio.gesture(); endCut(); }; }
   else setTimeout(arrive, 900);
   addEventListener("resize", resize); resize();
@@ -705,7 +700,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   $("#loading").remove(); sndLabel(); $("#snd").onclick = (e) => { e.stopPropagation(); audio.toggle(); sndLabel(); toast(audio.on ? L("♪ 聲音打開了", "♪ Sound on") : L("聲音關掉了", "Sound off"), 1800); };
   const perf = { n: 0, sum: 0, max: 0 };
   if (QS.has("dbg")) window.__ink = { P, cam, strokes: () => strokes.map((s) => ({ i: s.i, id: s.id, rev: !!s.rev })), ev: () => evs.map((e) => ({ i: e.i, kind: e.kind, x: +e.x.toFixed(1), z: +e.z.toFixed(1), state: e.state })),
-    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, cutT: () => cut && { ph: cut.ph, t: +cut.t.toFixed(2), alt: !!cut.alt, n: cutItems ? cutItems.length : -1 }, cutSet: (t) => { if (cut) { cut.ph = "run"; cut.t = t; } return !!cut; }, sketch: () => sketch && { base: sketch.base, k: +sketch.k.toFixed(2), n: sketch.pts.length, lines: sketch.lines.length, x: sketch.x, z: sketch.z, cy: +sketch.c.y.toFixed(2), r: +sketch.r.toFixed(2) }, focus: () => focus, guideScr: () => sketch ? sketch.lines.map((L2) => L2.map((i) => { _sv.copy(sketch.pts[i]).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; })) : null, mode: () => mode, setMode,
+    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, cutT: () => cut && { ph: cut.ph, t: +cut.t.toFixed(2), n: cutItems ? cutItems.length : -1 }, cutSet: (t) => { if (cut) { cut.ph = "run"; cut.t = t; } return !!cut; }, sketch: () => sketch && { base: sketch.base, k: +sketch.k.toFixed(2), n: sketch.pts.length, lines: sketch.lines.length, x: sketch.x, z: sketch.z, cy: +sketch.c.y.toFixed(2), r: +sketch.r.toFixed(2) }, focus: () => focus, guideScr: () => sketch ? sketch.lines.map((L2) => L2.map((i) => { _sv.copy(sketch.pts[i]).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; })) : null, mode: () => mode, setMode,
     traceAll: (speed = 500) => { if (!sketch) return null; setMode("trace"); sketch.hit = sketch.pts.map(() => true); sketch.speeds.push(speed); sketch.k = 1; sketchShow(1); inkDone(); return strokes.length; },
     traceAt, free: (st) => freeStroke(st), scr: (x, y, z) => { _sv.set(x, y, z).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; }, marks: () => marks.map((q) => q.m.k), people: () => Object.keys(folkIn), meet, album, arrive, WX: () => WX, scrollCheck,
     paintAll: (d = 2) => { Object.keys(STROKE).forEach((k, i) => { if (!strokes.some((s) => s.i === i)) addStroke(i, `${k}@${d}`, false); }); checkAll(); showGrowth(); return strokes.length; },
@@ -759,7 +754,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     if (_p.y < 0.6) _p.y = 0.6;
     _look.copy(base); _look.y += lift * 3.2 * D;
     if (cut) runCut(raw, _p, _look); else { camera.position.copy(_p); camera.lookAt(_look); }
-    if (cut && cut.alt && sceneB) renderer.render(sceneB, camB); else renderer.render(scene, camera);
+    renderer.render(scene, camera);
     const ms = performance.now() - f0; if (!cut) { perf.n++; perf.sum += ms; if (ms > perf.max) perf.max = ms; } }
   requestAnimationFrame(frame);
 })();
