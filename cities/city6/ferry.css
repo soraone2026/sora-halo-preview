@@ -1,0 +1,43 @@
+/* 浮燈渡（2026-11-23）：版面沿用曦環城的 halo.css，這裡換成黃昏雲海的顏色；另外是「浮島漂過來」的選擇面板和故事卡（第六座以後共用的樣式也放這裡，之後的城市可以直接引用） */
+html, body { background: #3a2040; }
+.card { background: rgba(58, 32, 64, .6); border-color: rgba(255, 216, 144, .3); }
+.btn { background: rgba(58, 32, 64, .6); border-color: rgba(255, 216, 144, .32); }
+.muted { color: #f4dcc8; }
+.snd, .echo { color: #ffe8c8; }
+.echo.full { color: #fff3c8; border-color: rgba(255, 240, 190, .8); }
+.say { background: rgba(58, 32, 64, .86); border-color: rgba(255, 216, 144, .5); color: #fff4e8; }
+.say small { color: #f0c8a0; }
+.hint { background: rgba(58, 32, 64, .55); color: #fff0e0; }
+.toast { background: rgba(58, 32, 64, .92); border-color: rgba(255, 216, 144, .55); }
+.gate { background: linear-gradient(to top, rgba(40, 20, 44, .92), rgba(40, 20, 44, 0) 58%); }
+.gate .gbox small { color: #f0c8a0; }
+.gate .gbox b { text-shadow: 0 0 18px rgba(255, 200, 120, .7); color: #fff8ee; }
+.btn.primary { background: #ffd890; border-color: #ffd890; color: #3a2010; box-shadow: 0 0 22px rgba(255, 200, 120, .5); }
+.flash { background: #fff4e6; }
+.posterov { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(30, 16, 34, .6); padding: 16px; }
+.posterov .pcard { width: min(320px, 86vw); background: rgba(58, 32, 64, .96); border: 1px solid rgba(255, 216, 144, .4); border-radius: 16px; padding: 14px; text-align: center; color: #fff4e8; display: grid; gap: 10px; }
+.posterov .pcard small { color: #f0c8a0; letter-spacing: .08em; }
+.posterov img { width: 100%; height: auto; border-radius: 6px; box-shadow: 0 8px 26px rgba(0, 0, 0, .5); }
+.posterov p { margin: 0; font-size: 14px; color: #f4e0d0; }
+/* 浮島漂過來：選一座靠岸 */
+.growp { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); transform: translate(-50%, 140%); transition: transform .45s cubic-bezier(.2, .9, .3, 1); z-index: 55; width: min(440px, calc(100vw - 24px)); background: rgba(48, 26, 54, .94); border: 1px solid rgba(255, 216, 144, .45); border-radius: 18px; padding: 14px; color: #fff4e8; display: grid; gap: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, .45); }
+.growp.on { transform: translate(-50%, 0); }
+.growp .gtt { font-size: 16px; }
+.growp .gwhy { margin: 0; font-size: 13px; color: #f0c8a0; }
+.growp .gopts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.growp .gopt { display: grid; gap: 4px; justify-items: start; text-align: left; margin: 0; padding: 12px; border-radius: 14px; background: rgba(255, 216, 144, .1); border: 1px solid rgba(255, 216, 144, .35); color: #fff4e8; cursor: pointer; font: inherit; }
+.growp .gopt:hover, .growp .gopt:focus-visible { background: rgba(255, 216, 144, .22); }
+.growp .gic { font-size: 26px; line-height: 1; }
+.growp .gopt small { color: #f4dcc8; font-size: 12px; line-height: 1.45; }
+.growp .glater { justify-self: center; margin: 0; }
+/* 修好三處之後的故事 */
+.storyov { position: fixed; inset: 0; z-index: 65; display: grid; place-items: center; background: rgba(20, 10, 24, .72); padding: 16px; }
+.storyov .scard { width: min(440px, 92vw); max-height: 86vh; overflow: auto; background: #f6ecdc; color: #3a2a22; border-radius: 10px; padding: 22px 22px 18px; display: grid; gap: 10px; box-shadow: 0 18px 50px rgba(0, 0, 0, .55); font-family: 'Noto Serif TC', 'Microsoft JhengHei', Georgia, serif; }
+.storyov small { color: #9a6a4a; letter-spacing: .12em; font-size: 12px; }
+.storyov b { font-size: 20px; }
+.storyov p { margin: 0; line-height: 1.75; font-size: 15px; opacity: 0; animation: storyIn .9s ease forwards; }
+.storyov .ssign { text-align: right; color: #7a5a4a; font-size: 14px; }
+.storyov .snext { color: #8a4a3a; font-size: 13px; border-top: 1px dashed rgba(120, 80, 60, .4); padding-top: 10px; }
+.storyov .btn { justify-self: center; margin-top: 6px; }
+@keyframes storyIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .storyov p { animation: none; opacity: 1; } .growp { transition: none; } }

@@ -1,0 +1,7 @@
+/* 星際城市小遊戲（minigame.js） */
+.mgov{position:fixed;inset:0;z-index:2147483500;background:rgba(10,12,28,.72);display:grid;place-items:center;padding:12px;font:15px/1.5 system-ui,"Noto Sans TC",sans-serif;color:#fff;touch-action:none}
+.mgbox{width:min(380px,100%);display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.mghd{display:flex;justify-content:space-between;align-items:center;gap:8px}.mghd b{font-size:17px}.mghd span{font-variant-numeric:tabular-nums;opacity:.9}
+.mgcv{width:100%;aspect-ratio:360/500;border-radius:18px;background:#141a33;box-shadow:0 10px 30px rgba(0,0,0,.4);touch-action:none;display:block}
+.mgmsg{text-align:center;min-height:1.5em;opacity:.92}.mgbtn{font:inherit;font-weight:700;padding:10px 18px;border:0;border-radius:999px;background:#ffd66b;color:#2a2010;cursor:pointer}
+.mgbtn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)}.mgrow{display:flex;gap:8px;justify-content:center}
