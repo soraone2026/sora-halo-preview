@@ -335,7 +335,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
       const m = spr(mothT, "#ffffff", 1.1, 0.95); e.g.add(m); e.m = m; proxy(1.6, "ev", i, e.g, 0); }
     if (e.state === "done" && kind === "lamp") { e.gl.material.opacity = 0.6; e.box.material = new THREE.MeshBasicMaterial({ color: "#ffd8a8" }); } else e.g.visible = e.state !== "done";
     scene.add(e.g); return e; });
-  const showCount = () => { const n = evs.filter((e) => e.state !== "wait").length, el = $("#echo"); el.textContent = `墨 ${n} / 5`; el.classList.toggle("full", n >= 5); };
+  const showCount = () => { const n = evs.filter((e) => e.state !== "wait").length, el = $("#echo"); el.textContent = L(`小事 ${n} / 5`, `Tasks ${n} / 5`);   /* 熊：「墨2/5是什麼意思」——跟畫筆的墨分開 */ el.classList.toggle("full", n >= 5); };
   showCount();
   function finish(e) { if (e.state !== "wait") return;
     if (!QS.get("day") && todayStr() !== DAY) { toast(L("過了午夜，畫換了一頁。重新整理……", "Midnight has passed — the painting turns a page. Reloading…")); setTimeout(() => location.reload(), 1600); return; }

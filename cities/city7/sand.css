@@ -1,0 +1,75 @@
+/* 鳴沙城（第七座星際城市）：在 /city2/halo.css 的深色介面上，換成青銅、星砂金 */
+html, body { background: #07040f; }
+.hud .btn, .hud .card { background: rgba(26, 18, 40, .62); border-color: rgba(242, 200, 106, .35); color: #f6ecd6; }
+.hud .btn.gold { background: linear-gradient(135deg, #f2c86a, #c98a2c); color: #2a1a08; border-color: #f2c86a; font-weight: 800; }
+.hud .btn.on { box-shadow: 0 0 0 2px #f2c86a, 0 0 18px rgba(242, 200, 106, .6); }
+.gate .gbox small { color: #f2c86a; }
+.gate .gbox b { color: #fff6e0; text-shadow: 0 0 22px rgba(242, 200, 106, .75); }
+.hud, .hint, .say, .toast, .gate, .fixp, .posterov, .storyov, .tunebar, .figov { z-index: 50; }
+.tunebar { z-index: 55; }
+.figov, .storyov, .posterov { z-index: 65; }
+
+/* 修復海報 */
+.posterov { position: fixed; inset: 0; overflow-y: auto; background: rgba(6, 4, 14, .6); padding: calc(16px + env(safe-area-inset-top)) 16px 24px; }
+.posterov .pcard { width: min(320px, 100%); margin: 0 auto; background: #1a1328; border: 1px solid rgba(242, 200, 106, .4); border-radius: 14px; padding: 14px; text-align: center; color: #f6ecd6; display: grid; gap: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, .5); }
+.posterov .pcard small { color: #f2c86a; letter-spacing: .1em; }
+.posterov img { width: 100%; height: auto; border-radius: 6px; }
+.posterov p { margin: 0; font-size: 14px; color: #d8cbe8; }
+/* 故事（手機上整頁可以捲） */
+.storyov { position: fixed; inset: 0; overflow-y: auto; background: rgba(6, 4, 14, .7); padding: calc(16px + env(safe-area-inset-top)) 16px 24px; }
+.storyov .scard { width: min(440px, 100%); margin: 0 auto; background: linear-gradient(180deg, #1d1530, #120c1e); color: #f6ecd6; border: 1px solid rgba(242, 200, 106, .35); border-radius: 14px; padding: 24px 22px 18px; display: grid; gap: 10px; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
+.storyov small { color: #f2c86a; letter-spacing: .3em; font-size: 12px; }
+.storyov b { font-size: 24px; letter-spacing: .3em; color: #fff6e0; }
+.storyov p { margin: 0; line-height: 1.85; font-size: 15px; opacity: 0; animation: storyIn 1s ease forwards; }
+.storyov .ssign { text-align: right; color: #c8b8dc; font-size: 14px; }
+.storyov .snext { color: #b8a8cc; font-size: 13px; border-top: 1px solid rgba(242, 200, 106, .25); padding-top: 10px; }
+.storyov .btn { justify-self: center; margin-top: 6px; }
+@keyframes storyIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .storyov p { animation: none; opacity: 1; } }
+
+/* 調音的那一條 */
+.tunebar { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); transform: translate(-50%, 170%); transition: transform .45s cubic-bezier(.2, .9, .3, 1); width: min(520px, calc(100vw - 20px));
+  background: rgba(20, 13, 32, .86); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(242, 200, 106, .4); border-radius: 18px; padding: 12px 14px; color: #f6ecd6; display: grid; gap: 8px; box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
+.tunebar.on { transform: translate(-50%, 0); }
+.tunebar .trow { display: flex; gap: 10px; align-items: center; }
+.tunebar .tfig { width: 56px; height: 56px; flex: none; border-radius: 50%; box-shadow: 0 0 14px rgba(242, 200, 106, .45); }
+.tunebar .ttxt { font-size: 13.5px; line-height: 1.5; min-width: 0; }
+.tunebar .ttxt b { color: #f2c86a; }
+.tunebar .ttxt small { display: block; color: #b8a8cc; font-size: 12px; }
+.tunebar .track { position: relative; height: 54px; border-radius: 27px; background: linear-gradient(90deg, #2a1d3e, #3a2a52 50%, #2a1d3e); border: 1px solid rgba(242, 200, 106, .3); touch-action: none; cursor: ew-resize; overflow: hidden; }
+.tunebar .track .zone { position: absolute; top: 0; bottom: 0; background: radial-gradient(closest-side, rgba(242, 200, 106, .35), rgba(242, 200, 106, 0)); pointer-events: none; }
+.tunebar .track .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .09) 0 1px, transparent 1px 14px); pointer-events: none; }
+.tunebar .track .knob { position: absolute; top: 5px; width: 44px; height: 44px; margin-left: -22px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff6d8, #f2c86a 45%, #b07420); box-shadow: 0 0 calc(8px + var(--res, 0) * 30px) rgba(255, 220, 140, calc(.4 + var(--res, 0) * .6)); pointer-events: none; }
+.tunebar .meter { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.tunebar .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f2c86a, #fff2c0); transition: width .08s; }
+.tunebar .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.tunebar .chips button, .tunebar .chips span { flex: none; display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px; padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px solid rgba(242, 200, 106, .3); background: rgba(255, 255, 255, .06); color: #f6ecd6; cursor: pointer; }
+.tunebar .chips button.on { border: 2px solid #f2c86a; font-weight: 700; }
+.tunebar .chips span.lock { opacity: .45; border-style: dashed; cursor: default; }
+.tunebar .chips i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.tunebar .tbtns { display: flex; gap: 8px; justify-content: center; }
+.tunebar .tbtns .btn { margin: 0; }
+.tunebar .btn.primary { background: linear-gradient(135deg, #f2c86a, #c98a2c); color: #2a1a08; border: 0; font-weight: 800; }
+
+/* 聲紋譜 */
+.figov { position: fixed; inset: 0; overflow-y: auto; overscroll-behavior: contain; background: rgba(6, 4, 14, .7); padding: calc(14px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom)); }
+.figov .fbox { width: min(500px, 100%); margin: 0 auto; background: linear-gradient(180deg, #1d1530, #120c1e); color: #f6ecd6; border: 1px solid rgba(242, 200, 106, .35); border-radius: 16px; padding: 12px 14px 16px; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
+.figov .fhead { display: flex; align-items: center; gap: 8px; position: sticky; top: calc(-14px - env(safe-area-inset-top)); background: #1d1530; padding: 8px 0; z-index: 2; }
+.figov .fhead b { font-size: 18px; letter-spacing: .2em; color: #fff6e0; }
+.figov .fhead small { color: #f2c86a; }
+.figov .fhead .btn { margin: 0 0 0 auto; }
+.figov .flead { margin: 4px 0 10px; font-size: 13.5px; line-height: 1.6; color: #d8cbe8; border-left: 3px solid #f2c86a; padding: 4px 10px; background: rgba(242, 200, 106, .07); border-radius: 4px; }
+.figov .fcols { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.figov .fcols span { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px dashed rgba(242, 200, 106, .3); color: #b8a8cc; }
+.figov .fcols span.has { border-style: solid; color: #f6ecd6; }
+.figov .fcols i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.figov .fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
+.figov .fcell { display: grid; justify-items: center; gap: 4px; font-size: 12px; color: #d8cbe8; }
+.figov .fcell canvas { width: 72px; height: 72px; border-radius: 50%; }
+.figov .fcell .q { width: 72px; height: 72px; border-radius: 50%; border: 1.5px dashed rgba(242, 200, 106, .3); display: grid; place-items: center; color: rgba(242, 200, 106, .4); font-size: 22px; }
+.figov .fcell.today .q, .figov .fcell.today canvas { box-shadow: 0 0 0 2px #f2c86a, 0 0 16px rgba(242, 200, 106, .6); }
+.figov .fcell.city b { color: #f2c86a; }
+
+/* 鏡頭邊緣的暗角 */
+.vig { position: fixed; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(120% 95% at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(4, 2, 12, .5) 100%); }
+@media (max-width: 600px) { .hud { flex-wrap: wrap; row-gap: 6px; } .hud .spacer { flex-basis: 100%; height: 0; order: 2; } .hud .btn.snd, .hud .btn.echo { order: 3; padding-left: 10px; padding-right: 10px; } }

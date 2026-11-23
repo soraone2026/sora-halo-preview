@@ -26,7 +26,7 @@
 <body>
 <main>
   <h1>星際城市試玩</h1>
-  <p>第六座「留白城」的預覽：一幅沒畫完的水墨畫，每天可以替它添一筆。沒有伺服器，存檔只在這支手機的瀏覽器裡。</p>
+  <p>第六座「留白城」、第七座「鳴沙城」的預覽。沒有伺服器，存檔只在這支手機的瀏覽器裡。</p>
   <section>
     <h2>① 選一種生活（可以不選）</h2>
     <p>畫師會看你最近怎麼過日子，替你起好今天那一筆的稿。選一種生活試試看，再進城。</p>
@@ -42,11 +42,17 @@
     <div class="row"><button id="tom">🌙 跳到明天</button><button id="rst">↺ 全部重來</button></div>
     <small id="st"></small>
   </section>
-  <p><small>三處要修的地方材料都先給足了，修好會送海報；三處都修好有一段故事。</small></p>
+  <section>
+    <h2>③ 第七座：鳴沙城</h2>
+    <p>一面浮在星雲裡的巨大銅盤，星光落下來變成金色的沙。按金色的「調」左右拖，替銅盤掃過不同的音，沙會排出圖案；停在最整齊的地方就定音。每天銅盤想唱的那一個，定下來會在城裡結晶成一圈光塔。上面選的生活也會影響它。</p>
+    <a class="go" href="city7/index.html">進入鳴沙城 ›</a>
+    <small id="st7"></small>
+  </section>
+  <p><small>兩座城要修的地方材料都先給足了，修好會送海報；三處都修好有一段故事。記得開聲音。</small></p>
 </main>
 <script src="demo.js"></script>
 <script>
-  const st = document.getElementById("st"), show = () => { const i = StarDemo.info(); st.textContent = `目前：添了 ${i.isles} 筆・修好 ${i.fixed} / 3`;
+  const st = document.getElementById("st"), st7 = document.getElementById("st7"), show = () => { const i = StarDemo.info(), j = StarDemo.info("mingsha"); st.textContent = `留白城：添了 ${i.isles} 筆・修好 ${i.fixed} / 3`; st7.textContent = `鳴沙城：${j.isles} 圈光塔・${j.figs} 種聲紋・修好 ${j.fixed} / 3`;
     document.querySelectorAll("#life button").forEach((b) => b.classList.toggle("on", b.dataset.k === i.life)); };
   document.querySelectorAll("#life button").forEach((b) => b.onclick = () => { StarDemo.life(b.dataset.k); show(); });
   document.getElementById("tom").onclick = () => { StarDemo.tomorrow(); st.textContent = "好了，進城就是新的一天。"; setTimeout(show, 1600); };

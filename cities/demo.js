@@ -9,7 +9,7 @@
   };
   function fresh(name) {
     return { avatar: { name: name || "試玩者", finance: { bcoins: 80 }, owned: [] }, profile: { setup_done: true }, records: { finance: [] }, bloom_log: [],
-      mats: { ink: { in: 40, out: 0 }, moss: { in: 12, out: 0 }, pearl: { in: 12, out: 0 }, sand: { in: 12, out: 0 }, lux: { in: 8, out: 0 } },
+      mats: { tone: { in: 50, out: 0 }, ink: { in: 40, out: 0 }, moss: { in: 12, out: 0 }, pearl: { in: 12, out: 0 }, sand: { in: 12, out: 0 }, lux: { in: 8, out: 0 } },
       essence: { n: 20, lens: 0, log: [] }, gems: { "G-4": 3, "G-5": 2, "G-6": 2 }, updated_at: Date.now() };
   }
   function read() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
@@ -25,6 +25,6 @@
       s.records = { finance: recs }; s.bloom_log = log; s.life = kind; Object.keys(s.grow || {}).forEach(function (c) { s.grow[c].pend = null; s.grow[c].last = "2000-01-01"; }); write(s); },
     /* 跳到明天：下次進城就像新的一天（會再漂來兩座） */
     tomorrow: function () { var s = read() || fresh(), R = s.grow = s.grow || {}; Object.keys(R).forEach(function (c) { R[c].last = "2000-01-01"; R[c].pend = null; }); write(s); },
-    info: function () { var s = read() || {}, G = (s.grow || {}).liubai || {}; return { life: s.life || "", isles: (G.slots || []).length, steps: G.steps || 0, fixed: (((s.fix || {}).liubai || {}).done || []).length }; }
+    info: function (city) { var c = city || "liubai", s = read() || {}, G = (s.grow || {})[c] || {}; return { life: s.life || "", isles: (G.slots || []).length, steps: G.steps || 0, figs: Object.keys(G.lv || {}).filter(function (k) { return k.indexOf("f:") === 0; }).length, fixed: (((s.fix || {})[c] || {}).done || []).length }; }
   };
 })();

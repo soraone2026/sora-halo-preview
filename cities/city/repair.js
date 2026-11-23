@@ -4,6 +4,7 @@
  */
 const MAT = { lux: ["曦晶", "Halo crystal", "◆", "曦環城裡拿得到", "found in Xi Halo"], sand: ["時砂", "Time sand", "⧗", "凝瞬城裡拿得到", "found in Stillmoment"], pearl: ["潮珠", "Tide pearl", "◉", "潮光港裡拿得到", "found in Tidelight Harbor"], moss: ["苔光", "Mossglow", "❦", "螢苔林裡拿得到", "found in Glowmoss Grove"],
   ink: ["松煙墨", "Pine-soot ink", "墨", "留白城裡拿得到", "found in Liubai"],
+  tone: ["音晶", "Tone crystal", "♪", "鳴沙城裡拿得到", "found in Mingsha"],
   ess: ["元液", "Essence", "💧", "家裡的元液瓶", "from the essence jar at home"], gem: ["多出來的寶石", "Spare gem", "💎", "家裡重複的寶石", "a duplicate gem from home"] };
 
 export function createRepair({ city, L, toast, say, FS, info, onUpdate, sound }) {
