@@ -96,3 +96,12 @@ body.brushing .hint { opacity: 0; }
 .albumov .blank { color: #7a6a5a; font-size: 13px; }
 /* 手機：右上角的按鈕多，放不下就換行 */
 @media (max-width: 600px) { .hud { flex-wrap: wrap; row-gap: 6px; } .hud .spacer { flex-basis: 100%; height: 0; order: 2; } .hud .btn.snd, .hud .btn.echo { order: 3; padding-left: 10px; padding-right: 10px; } }
+/* 2026-11-23 熊試玩後：每頁的說明、描稿的稿線、閒筆的筆譜 */
+.albumov .alead { margin: 0 0 10px; font-size: 13.5px; line-height: 1.6; color: #3a322c; background: rgba(192, 58, 43, .07); border-left: 3px solid #c03a2b; padding: 6px 10px; border-radius: 4px; }
+.guidecv { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 39; pointer-events: none; }
+.inkbar .ipu { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 6px 0 8px; }
+.inkbar .ipu span { display: flex; align-items: center; gap: 4px; justify-content: center; font-size: 12px; padding: 4px 2px; border-radius: 8px; border: 1px dashed rgba(58, 50, 44, .35); color: #7a7068; white-space: nowrap; }
+.inkbar .ipu span b { font-size: 15px; color: #2a2420; min-width: 1em; text-align: center; }
+.inkbar .ipu span.has { border-style: solid; color: #2a2420; background: rgba(255, 255, 255, .5); }
+.inkbar .ipu span.has i { color: #c03a2b; font-style: normal; }
+.inkbar .ipu span i { font-style: normal; }

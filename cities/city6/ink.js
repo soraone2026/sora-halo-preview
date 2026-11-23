@@ -410,20 +410,72 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   const PENCIL = new THREE.Color("#9a9286");
   function makeSketch(base) { const slot = (FS.growState(CITY).slots || []).length; if (slot >= SLOTS.length) return null; const [x, z] = SLOTS[slot], { g, wobs } = paint(base + "@2", x, z);
     wobs.forEach((o) => tog(o, false)); const mats = []; g.traverse((o) => { if (o.userData.outline) { o.visible = false; return; } if (!o.material) return; o.material = o.material.clone(); o.material.transparent = true;
-      mats.push({ m: o.material, col: o.material.color ? o.material.color.clone() : null, op: o.material.opacity }); if (o.material.color) o.material.color.copy(PENCIL); o.material.opacity = 0.3; });
+      mats.push({ m: o.material, col: o.material.color ? o.material.color.clone() : null, op: o.material.opacity }); if (o.material.color) o.material.color.copy(PENCIL); o.material.opacity = 0.5; });
     g.updateMatrixWorld(true); const pts = [], _v = new V3(), _m = new THREE.Matrix4();
     g.traverse((o) => { if (o.userData.outline) return; if (o.isInstancedMesh) { for (let i = 0; i < o.count; i += 2) { o.getMatrixAt(i, _m); _v.setFromMatrixPosition(_m); const sy = new V3().setFromMatrixScale(_m).y; for (const f of [-0.3, 0.1, 0.4]) pts.push(_v.clone().add(new V3(0, sy * f, 0)).applyMatrix4(o.matrixWorld)); } }
       else if (o.isMesh || o.isPoints) { const p = o.geometry.attributes.position, step = Math.max(1, Math.floor(p.count / (o.isPoints ? 6 : 10))); for (let i = 0; i < p.count; i += step) pts.push(new V3(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(o.matrixWorld)); }
       else if (o.isSprite) pts.push(o.getWorldPosition(new V3())); });
-    while (pts.length > 70) pts.splice(Math.floor(rnd() * pts.length), 1);
-    return { base, g, wobs, mats, pts, hit: pts.map(() => false), k: 0, speeds: [], slot, x, z }; }
-  function sketchShow(k) { for (const q of sketch.mats) { if (q.col) q.m.color.copy(PENCIL).lerp(q.col, k); q.m.opacity = 0.3 + (q.op - 0.3) * k; } if (k > 0.55) sketch.g.traverse((o) => { if (o.userData.outline) o.visible = true; }); }
+    void pts; const bb = new THREE.Box3().setFromObject(g), sph = bb.getBoundingSphere(new THREE.Sphere());
+    return { base, g, wobs, mats, pts: [], lines: [], hit: [], k: 0, speeds: [], slot, x, z, c: sph.center.clone(), r: Math.max(1.2, sph.radius) }; }
+  /* 熊：「才下筆一點，樹就畫好了」——以前是物件上 70 個點、每點半徑 46px，一刷就八成。
+   * 現在依鏡頭的方向，把每個部件拉成一條稿線（高的直著拉、扁的橫著拉；成排的小東西串成一條），
+   * 每條線上平均取點，筆刷半徑小一點，要刷到 85% 才算描完。 */
+  function buildGuides(S, yaw) { const px = Math.cos(yaw), pz = -Math.sin(yaw), lines = [], loose = [], bb = new THREE.Box3(), c = new V3(), sz = new V3(), m4 = new THREE.Matrix4();
+    const chain = (ps) => { const b2 = new THREE.Box3().setFromPoints(ps), s2 = b2.getSize(new V3()), along = (p) => s2.y > Math.hypot(s2.x, s2.z) ? p.y : p.x * px + p.z * pz; return ps.slice().sort((a, b) => along(a) - along(b)); };
+    S.g.updateMatrixWorld(true);
+    S.g.traverse((o) => { if (o.userData.outline || !o.visible && o !== S.g) return;
+      if (o.isInstancedMesh) { const ps = []; for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m4); ps.push(new V3().setFromMatrixPosition(m4).applyMatrix4(o.matrixWorld)); } if (ps.length > 1) lines.push(chain(ps)); else loose.push(...ps); return; }
+      if (o.isSprite) { loose.push(o.getWorldPosition(new V3())); return; }
+      if (!(o.isMesh || o.isPoints) || !o.geometry) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); bb.getCenter(c); bb.getSize(sz);
+      const hz = Math.abs(sz.x * px) + Math.abs(sz.z * pz);
+      if (Math.max(sz.y, hz) < 0.35) { loose.push(c.clone()); return; }
+      if (sz.y >= hz * 0.9) lines.push([new V3(c.x, bb.min.y + sz.y * 0.05, c.z), new V3(c.x, bb.max.y - sz.y * 0.05, c.z)]);
+      else lines.push([new V3(c.x - px * hz * 0.36, c.y, c.z - pz * hz * 0.36), new V3(c.x + px * hz * 0.36, c.y, c.z + pz * hz * 0.36)]); });
+    if (loose.length > 1) lines.push(chain(loose)); else if (loose.length) lines.push([loose[0], loose[0].clone().add(new V3(px * 0.4, 0, pz * 0.4))]);
+    const len = (L2) => L2.reduce((a, p, i) => a + (i ? p.distanceTo(L2[i - 1]) : 0), 0);
+    const uniq = []; for (const L2 of lines.sort((a, b) => len(b) - len(a))) { const m = L2[Math.floor(L2.length / 2)]; if (uniq.some((u) => u[Math.floor(u.length / 2)].distanceTo(m) < 0.25 && Math.abs(len(u) - len(L2)) < 0.3)) continue; uniq.push(L2); if (uniq.length >= 7) break; }
+    S.lines = []; S.pts = []; for (const L2 of uniq) { const tot = len(L2), n = Math.max(5, Math.min(16, Math.round(tot / 0.22))), smp = [];
+      for (let i = 0; i < n; i++) { let d = tot * i / (n - 1), j = 1; while (j < L2.length - 1 && d > L2[j - 1].distanceTo(L2[j])) { d -= L2[j - 1].distanceTo(L2[j]); j++; } const a = L2[j - 1], b = L2[Math.min(j, L2.length - 1)], seg = a.distanceTo(b) || 1; smp.push(S.pts.length); S.pts.push(a.clone().lerp(b, Math.min(1, d / seg))); }
+      S.lines.push(smp); }
+    S.hit = S.pts.map(() => false); S.yaw = yaw; }
+  /* 稿線畫在一張透明的紙上：沒描到的是鉛筆虛線、描過的變成墨；每條線的起筆有個小圈 */
+  const guideCv = document.createElement("canvas"); guideCv.className = "guidecv"; document.body.append(guideCv); const gc = guideCv.getContext("2d"); let gW = 0, gH = 0, gOn = false;
+  const gFit = () => { const d = Math.min(2, devicePixelRatio || 1); gW = innerWidth; gH = innerHeight; guideCv.width = gW * d; guideCv.height = gH * d; gc.setTransform(d, 0, 0, d, 0, 0); }; gFit(); addEventListener("resize", gFit);
+  const _gv = new V3();
+  function drawGuides(t) { const S = sketch, show = S && S.lines.length && !cut && (mode === "trace" || focus);
+    if (!show && !(mode === "free")) { if (gOn) { gc.clearRect(0, 0, gW, gH); gOn = false; } return; } gc.clearRect(0, 0, gW, gH); gOn = true;
+    if (mode === "free") { _gv.set(camera.position.x - Math.sin(cam.yaw) * 80, 0, camera.position.z - Math.cos(cam.yaw) * 80).project(camera); const hy = (1 - _gv.y) / 2 * gH;   /* 天和地的分界 */
+      if (hy > 30 && hy < gH - 30) { gc.setLineDash([3, 7]); gc.strokeStyle = "rgba(90,80,70,.45)"; gc.lineWidth = 1.5; gc.beginPath(); gc.moveTo(0, hy); gc.lineTo(gW, hy); gc.stroke(); gc.setLineDash([]);
+        gc.font = "600 15px 'Noto Serif TC', serif"; gc.fillStyle = "rgba(60,52,44,.65)"; gc.fillText(L("天", "sky"), 14, hy - 10); gc.fillText(L("地", "ground"), 14, hy + 22); } }
+    if (!show) return; const pulse = mode === "trace" ? 1 : 0.55 + 0.45 * Math.sin(t * 3);
+    const sp = S.pts.map((p) => { _gv.copy(p).project(camera); return _gv.z > 1 ? null : [(_gv.x + 1) / 2 * gW, (1 - _gv.y) / 2 * gH]; });
+    for (const L2 of S.lines) { const q = L2.map((i) => sp[i]); if (q.some((x) => !x)) continue;
+      gc.lineCap = "round"; gc.setLineDash([7, 7]); gc.strokeStyle = `rgba(120,108,96,${0.75 * pulse})`; gc.lineWidth = 2.2; gc.beginPath(); q.forEach((p, i) => i ? gc.lineTo(p[0], p[1]) : gc.moveTo(p[0], p[1])); gc.stroke(); gc.setLineDash([]);
+      gc.strokeStyle = "rgba(22,19,17,.85)"; gc.lineWidth = 6; for (let i = 1; i < L2.length; i++) if (S.hit[L2[i]] && S.hit[L2[i - 1]]) { gc.beginPath(); gc.moveTo(q[i - 1][0], q[i - 1][1]); gc.lineTo(q[i][0], q[i][1]); gc.stroke(); }
+      if (!S.hit[L2[0]]) { gc.strokeStyle = `rgba(192,58,43,${0.85 * pulse})`; gc.lineWidth = 2; gc.beginPath(); gc.arc(q[0][0], q[0][1], 7, 0, 7); gc.stroke(); } } }
+  /* 鏡頭對準稿：進城時拉近給你看，拿起筆時再靠近一點，讓稿差不多佔半個畫面 */
+  let focus = null, fk = 0; const _fp = new V3(), _fb = new V3();
+  /* 熊：鏡頭被前面的松樹擋住、稿看起來很遠——繞著稿找一個看得清楚的角度，依稿線的大小拉近 */
+  const _ro = new V3(), _rd = new V3(), _rc = new THREE.Raycaster();
+  function clearYaw(c, D, pit, prefer, r = 1) { let best = prefer, bs = Infinity; const hits = scene.children.filter((o) => o !== ground && o !== court && o !== sketch.g && !o.isSprite && !o.isPoints && o.visible);
+    for (let i = 0; i < 16; i++) { const yaw = prefer + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * Math.PI / 8; const cpx = Math.cos(yaw), cpz = -Math.sin(yaw); let blocked = 0;   /* 稿的中心和上下左右各拉一條視線到鏡頭，有幾條被擋住 */
+      for (const [u, v] of [[0, 0], [-0.7, 0], [0.7, 0], [0, 0.6], [0, -0.5]]) { _ro.set(c.x + cpx * u * r, c.y + v * r, c.z + cpz * u * r); const cam2 = new V3(c.x + Math.sin(yaw) * Math.cos(pit) * D, c.y + Math.sin(pit) * D, c.z + Math.cos(yaw) * Math.cos(pit) * D); _rd.copy(cam2).sub(_ro); const dd = _rd.length(); _rd.normalize();
+        _rc.set(_ro, _rd); _rc.far = dd; _rc.camera = camera; try { if (_rc.intersectObjects(hits, true).some((h) => h.object.isMesh && !h.object.userData.outline && h.distance > 0.4)) blocked++; } catch (e) { } }
+      const score = blocked * 10 + Math.ceil(i / 2) * 0.3; if (score < bs) { bs = score; best = yaw; } if (!blocked) break; }
+    return best; }
+  function focusSketch(near) { if (!sketch) return; const fv = camera.fov * Math.PI / 360, fh = Math.atan(Math.tan(fv) * camera.aspect), pit = near ? 0.2 : 0.26;
+    let yaw = Math.atan2(P.x - sketch.x, P.z - sketch.z); if (!sketch.lines.length) buildGuides(sketch, yaw);
+    const sph = new THREE.Sphere().setFromPoints(sketch.pts.length > 1 ? sketch.pts : [sketch.c]), r = Math.max(1.1, sph.radius), D = Math.max(5, Math.min(34, r / Math.tan(Math.min(fv, fh)) * (near ? 1.35 : 2.1)));
+    yaw = clearYaw(sph.center, D, pit, sketch.focusYaw != null ? sketch.focusYaw : yaw, r); sketch.focusYaw = yaw; if (Math.abs(Math.atan2(Math.sin(sketch.yaw - yaw), Math.cos(sketch.yaw - yaw))) > 0.3) buildGuides(sketch, yaw);
+    cam.yaw = yaw; cam.pitch = pit; cam.want = D; focus = { x: sph.center.x, y: Math.max(1, sph.center.y), z: sph.center.z }; _fp.set(focus.x, focus.y, focus.z); }
+  function unfocus() { if (!focus) return; focus = null; cam.want = SMALL ? 14 : 12.5; cam.pitch = 0.28; }
+  function sketchShow(k) { for (const q of sketch.mats) { if (q.col) q.m.color.copy(PENCIL).lerp(q.col, k); q.m.opacity = 0.5 + (q.op - 0.5) * k; } if (k > 0.55) sketch.g.traverse((o) => { if (o.userData.outline) o.visible = true; }); }
   const _sv = new V3();
-  function traceAt(x, y, sp) { if (!sketch) return; const R = Math.max(26, Math.min(46, Math.min(innerWidth, innerHeight) * 0.055)); let n = 0;
+  function traceAt(x, y, sp) { if (!sketch) return; const R = Math.max(16, Math.min(26, Math.min(innerWidth, innerHeight) * 0.032)); let n = 0;
     sketch.pts.forEach((p, i) => { if (sketch.hit[i]) return; _sv.copy(p).project(camera); if (_sv.z > 1) return; const sx = (_sv.x + 1) / 2 * innerWidth, sy = (1 - _sv.y) / 2 * innerHeight; if (Math.hypot(sx - x, sy - y) < R) { sketch.hit[i] = true; n++; if (n < 3) blotAt(p, 0.8 + rnd() * 0.8); } });
-    if (sp > 0) sketch.speeds.push(sp); const k = sketch.hit.filter(Boolean).length / sketch.hit.length; if (k !== sketch.k) { sketch.k = k; sketchShow(k); bar(); if (n) audio.dab(); } if (k >= 0.8) inkDone(); }
+    if (sp > 0) sketch.speeds.push(sp); const k = sketch.hit.filter(Boolean).length / sketch.hit.length; if (k !== sketch.k) { sketch.k = k; sketchShow(k); bar(); if (n) audio.dab(); } if (k >= 0.85) inkDone(); }
   function inkDone() { const S = sketch; if (!S || S.done) return; S.done = true; const sp = S.speeds.length ? S.speeds.reduce((a, b) => a + b, 0) / S.speeds.length : 900, d = sp < 650 ? 3 : sp < 1500 ? 2 : 1, id = `${S.base}@${d}`;
-    const r = FS.growChoose(CITY, S.base, SLOTS.length, id); scene.remove(S.g); sketch = null; setMode(null); if (!r) { bar(); return; }
+    const r = FS.growChoose(CITY, S.base, SLOTS.length, id); scene.remove(S.g); sketch = null; setMode(null); unfocus(); if (!r) { bar(); return; }
     addStroke(r.slot >= 0 ? r.slot : S.slot, id, true); audio.stroke(); const N = STROKE[S.base];
     say(L(`「${N.name[0]}」${d === 3 ? "——墨下得又沉又滿。" : d === 1 ? "——幾筆飛白，很輕。" : "——墨色正好。"}`, `"${N.name[1]}" — ${d === 3 ? "the ink went down deep and full." : d === 1 ? "a few light, dry strokes." : "the ink is just right."}`), L("硯翁", "Old Inkstone"), 6500);
     album.grant("e:" + S.base); checkAll(); showGrowth(); bar(); }
@@ -449,6 +501,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     else if (m.k === "path") { const P2 = m.pts || []; for (let i = 0; i < P2.length; i++) { const st = mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.08, 9), 0.45); st.scale.set(1 + r() * 0.3, 1, 0.75 + r() * 0.3); st.rotation.y = r() * 3; st.position.set(P2[i][0], 0.05, P2[i][1]); g.add(st); } }
     else { const s = spr(cloudT, "#ffffff", 9, 0.8); s.scale.y = 4.5; g.add(s); g.position.set(m.x, m.y, m.z); anim = (t) => { g.position.x = m.x + Math.sin(t * 0.04 + m.z) * 4; }; }
     scene.add(g); const mats = reveal ? tagged(g) : null; if (mats) mats.forEach(([mt]) => { mt.opacity = 0; }); const it = { m, g, anim, rev: reveal ? { t: 0, mats } : null }; marks.push(it); return it; }
+  const PU = [["plum", "•", "gnd"], ["lotus", "○", "gnd"], ["shoot", "|", "gnd"], ["reed", "—", "gnd"], ["path", "∿", "gnd"], ["lantern", "•", "sky"], ["geese", "—", "sky"], ["cloud", "○", "sky"]];   /* 筆譜：點、圈、豎、橫、彎 × 天、地 */
   const MARK_NAME = { plum: ["一枝梅", "a sprig of plum"], lantern: ["一盞天燈", "a sky lantern"], lotus: ["一池蓮", "a lotus pond"], shoot: ["幾根竹筍", "a few bamboo shoots"], reed: ["一排蘆葦", "a row of reeds"], geese: ["一行雁", "a line of geese"], path: ["一條石徑", "a stone path"], cloud: ["一朵雲", "a cloud"] };
   function freeStroke(st) { const cl = classify(st);
     /* 先看是不是今天的小事：在石燈上畫個圈、沿著墨蝶描一筆 */
@@ -504,8 +557,10 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   /* ---------- 下面那一條：起好的稿、描到幾成、今天還能畫幾筆 ---------- */
   const barEl = document.createElement("div"); barEl.className = "inkbar"; barEl.addEventListener("pointerdown", (e) => e.stopPropagation()); barEl.addEventListener("pointerup", (e) => e.stopPropagation()); document.body.append(barEl);
   function bar() { const left = FS && FS.paintState ? Math.max(0, FS.paintAllow() - FS.paintState().used) : 0;
-    if (mode === "trace" && sketch) { barEl.innerHTML = `<p>${L("沿著淡淡的稿線刷過去", "Brush along the faint sketch lines")}<b>${Math.round(sketch.k * 100)}%</b></p><div class="ib-bar"><i></i></div><button class="btn" data-a="down" type="button">${L("先放下筆", "Put the brush down")}</button>`; barEl.querySelector(".ib-bar i").style.width = Math.round(sketch.k / 0.8 * 100) + "%"; }
-    else if (mode === "free") barEl.innerHTML = `<p>${L(`隨手畫：點一下、畫個圈、一橫、一豎、一道彎……畫在地上或天上都不一樣。今天還能畫 <b>${left}</b> 筆。`, `Draw freely — a dot, a circle, a line across or down, a curve… ground and sky give different things. <b>${left}</b> strokes left today.`)}</p><button class="btn" data-a="down" type="button">${L("放下筆", "Put the brush down")}</button>`;
+    if (mode === "trace" && sketch) { barEl.innerHTML = `<p>${L("從紅色小圈起筆，沿著每一條虛線刷過去", "Start at each red circle and brush along every dashed line")}<b>${Math.round(sketch.k * 100)}%</b></p><div class="ib-bar"><i></i></div><button class="btn" data-a="down" type="button">${L("先放下筆", "Put the brush down")}</button>`; barEl.querySelector(".ib-bar i").style.width = Math.round(sketch.k / 0.85 * 100) + "%"; }
+    else if (mode === "free") { const se = (FS && FS.paintState && FS.paintState().seals) || {};
+      const pu = PU.map(([k, g, w]) => `<span class="${se["m:" + k] ? "has" : ""}"><b>${g}</b><i>${w === "sky" ? L("天", "sky") : L("地", "gnd")}</i>${se["m:" + k] ? L(MARK_NAME[k][0].replace(/^一(枝|盞|池|條|排|行|朵)|^幾根/, ""), MARK_NAME[k][1].replace(/^(a|an) (sprig of |line of |row of |few )?/, "")) : "？"}</span>`).join("");
+      barEl.innerHTML = `<p>${L(`隨手畫。畫在虛線上面是「天」，下面是「地」。今天還能畫 <b>${left}</b> 筆。`, `Draw freely. Above the dashed line is sky, below is ground. <b>${left}</b> strokes left today.`)}</p><div class="ipu">${pu}</div><button class="btn" data-a="down" type="button">${L("放下筆", "Put the brush down")}</button>`; }
     else if (sketch) barEl.innerHTML = `<p><small>${why}</small>${L(`畫師起好了稿：「${STROKE[sketch.base].name[0]}」。這一筆，你來描。`, `The painter has sketched "${STROKE[sketch.base].name[1]}". This stroke is yours to ink.`)}</p><button class="btn primary" data-a="trace" type="button">${L("拿起筆", "Pick up the brush")}</button>`;
     else barEl.innerHTML = "";
     barEl.classList.toggle("on", !!barEl.innerHTML); const b1 = barEl.querySelector('[data-a="trace"]'), b2 = barEl.querySelector('[data-a="down"]');
@@ -515,7 +570,9 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   { const hud = $(".hud"), snd = $("#snd"), mk = (txt, title, fn, cls) => { const b = document.createElement("button"); b.className = "btn snd " + cls; b.type = "button"; b.textContent = txt; b.title = title; b.onclick = (e) => { e.stopPropagation(); fn(); }; hud.insertBefore(b, snd); return b; };
     penBtn = mk(L("筆", "Brush"), L("拿起筆隨手畫", "Pick up the brush"), () => setMode(mode === "free" ? null : "free"), "pen"); mk("印", L("印譜・題詩・長卷", "Seals · poem · scrolls"), () => album.open(), "seal"); }
   function setMode(m) { mode = m; brush.set(!!m); document.body.classList.toggle("brushing", !!m);
-    if (m === "trace" && sketch) { cam.yaw = Math.atan2(P.x - sketch.x, P.z - sketch.z); cam.want = Math.min(Math.max(cam.want, 15), 20); cam.pitch = 0.3; }
+    if (m === "trace" && sketch) focusSketch(true);
+    else if (m === "free") { unfocus(); cam.pitch = Math.min(cam.pitch, 0.13); cam.want = Math.max(cam.want, SMALL ? 15 : 13); }   /* 低一點，天和地各佔一半 */
+    else if (!m && sketch && focus) focusSketch(false);
     if (penBtn) penBtn.classList.toggle("on", m === "free"); bar(); }
   const brush = createBrush({ onMove: (x, y, sp) => { if (mode === "trace") traceAt(x, y, sp); }, onStroke: (st) => { if (mode === "free") freeStroke(st); else if (mode === "trace" && sketch && !sketch.done) toast(L(`描了 ${Math.round(sketch.k * 100)}%，繼續沿著稿線刷。`, `${Math.round(sketch.k * 100)}% inked — keep brushing along the lines.`), 1600); } });
   const showGrowth = () => { const n = strokes.length + marks.length, c = $("#clock"); c.textContent = L(`${n} 筆・${WXN[WX][0]}`, `${n} strokes · ${WXN[WX][1]}`); c.title = L(`這幅畫已經有 ${n} 筆`, `${n} strokes in the painting`); };
@@ -524,7 +581,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     placeSeals(g.state && g.state.visits); if (g.state) { moon.material.map = moonT(g.state.night); moon.material.needsUpdate = true; }
     if (WX !== "clear") setTimeout(() => album.grant("w:" + WX), 2500);
     why = g.top ? L(WHY[g.top][0], WHY[g.top][1]) : L("硯台很安靜，今天這一筆是風送來的。", "The inkstone is quiet; today's stroke came on the wind.");
-    if (g.offer && g.offer[0]) { sketch = makeSketch(strokeOf(g.offer[0]).k); if (sketch) { cam.yaw = Math.atan2(P.x - sketch.x, P.z - sketch.z); cam.want = 18; cam.pitch = 0.32; } }
+    if (g.offer && g.offer[0]) { sketch = makeSketch(strokeOf(g.offer[0]).k); if (sketch) focusSketch(false); }
     checkAll(); bar(); showGrowth(); setTimeout(scrollCheck, 6000); }
 
   /* ---------- 紙紋：整個畫面蓋一層紙的纖維 ---------- */
@@ -539,7 +596,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   function nearPick(cx0, cy0) { let best = null, bd = Math.max(42, Math.min(innerWidth, innerHeight) * 0.09);
     for (const m of pickables) { if (!m.parent || m.parent.visible === false) continue; const u = m.userData; if (u.kind === "fix") continue; m.getWorldPosition(_sp); if (_sp.distanceTo(camera.position) > 45) continue; _sp.project(camera); if (_sp.z > 1) continue;
       const d = Math.hypot((_sp.x + 1) / 2 * innerWidth - cx0, (1 - _sp.y) / 2 * innerHeight - cy0); if (d < bd) { bd = d; best = m; } } return best; }
-  function tap(cx0, cy0) { if (cut || mode) return; _nd.set(cx0 / innerWidth * 2 - 1, -(cy0 / innerHeight) * 2 + 1); ray.setFromCamera(_nd, camera); const gh = groundHit(), gd = gh ? gh.distanceTo(camera.position) : Infinity;
+  function tap(cx0, cy0) { if (cut || mode) return; unfocus(); _nd.set(cx0 / innerWidth * 2 - 1, -(cy0 / innerHeight) * 2 + 1); ray.setFromCamera(_nd, camera); const gh = groundHit(), gd = gh ? gh.distanceTo(camera.position) : Infinity;
     const hit = ray.intersectObjects(pickables, false).find((h) => h.object.parent && h.object.parent.visible !== false && h.distance < gd + 2); const obj = hit ? hit.object : nearPick(cx0, cy0);
     if (obj) { const u = obj.userData;
       if (u.kind === "fix") { fixTap(u.ref); return; }
@@ -585,8 +642,8 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   $("#loading").remove(); sndLabel(); $("#snd").onclick = (e) => { e.stopPropagation(); audio.toggle(); sndLabel(); toast(audio.on ? L("♪ 聲音打開了", "♪ Sound on") : L("聲音關掉了", "Sound off"), 1800); };
   const perf = { n: 0, sum: 0, max: 0 };
   if (QS.has("dbg")) window.__ink = { P, cam, strokes: () => strokes.map((s) => ({ i: s.i, id: s.id, rev: !!s.rev })), ev: () => evs.map((e) => ({ i: e.i, kind: e.kind, x: +e.x.toFixed(1), z: +e.z.toFixed(1), state: e.state })),
-    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, sketch: () => sketch && { base: sketch.base, k: +sketch.k.toFixed(2), n: sketch.pts.length, x: sketch.x, z: sketch.z }, mode: () => mode, setMode,
-    traceAll: (speed = 500) => { if (!sketch) return null; setMode("trace"); sketch.pts.forEach((p, i) => { sketch.hit[i] = true; }); sketch.speeds.push(speed); sketch.k = 1; sketchShow(1); inkDone(); return strokes.length; },
+    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, sketch: () => sketch && { base: sketch.base, k: +sketch.k.toFixed(2), n: sketch.pts.length, lines: sketch.lines.length, x: sketch.x, z: sketch.z, cy: +sketch.c.y.toFixed(2), r: +sketch.r.toFixed(2) }, focus: () => focus, guideScr: () => sketch ? sketch.lines.map((L2) => L2.map((i) => { _sv.copy(sketch.pts[i]).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; })) : null, mode: () => mode, setMode,
+    traceAll: (speed = 500) => { if (!sketch) return null; setMode("trace"); sketch.hit = sketch.pts.map(() => true); sketch.speeds.push(speed); sketch.k = 1; sketchShow(1); inkDone(); return strokes.length; },
     traceAt, free: (st) => freeStroke(st), scr: (x, y, z) => { _sv.set(x, y, z).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; }, marks: () => marks.map((q) => q.m.k), people: () => Object.keys(folkIn), meet, album, arrive, WX: () => WX, scrollCheck,
     paintAll: (d = 2) => { Object.keys(STROKE).forEach((k, i) => { if (!strokes.some((s) => s.i === i)) addStroke(i, `${k}@${d}`, false); }); checkAll(); showGrowth(); return strokes.length; },
     fix: () => Object.values(fixSites).map((S) => ({ id: S.id, k: +S.kt.toFixed(2), done: S.done })), fixAt: (id, off = 4.4) => { const S = fixSites[id]; P.x = S.x - off; P.z = S.z; P.tx = P.tz = null; return [S.x, S.z]; }, fixTap: (id) => { fixTap(id); return fixes.isOpen; },
@@ -631,7 +688,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     if (!cut) fixFrame(t, dt); togetherFrame(t, dt); cx.tick(t); mg.tick(t);
     /* 鏡頭 */
     cam.dist += (cam.want - cam.dist) * Math.min(1, dt * 1.6);
-    const base = _q.set(P.x, 1.6, P.z), pit = Math.max(0.06, cam.pitch), lift = Math.max(0, 0.06 - cam.pitch), cp = Math.cos(pit); let D = cam.dist;
+    fk = Math.max(0, Math.min(1, fk + (focus ? dt : -dt) * 1.4)); const base = _q.set(P.x, 1.6, P.z); if (fk > 0) base.lerp(_fp, ease(fk)); drawGuides(t); const pit = Math.max(0.06, cam.pitch), lift = Math.max(0, 0.06 - cam.pitch), cp = Math.cos(pit); let D = cam.dist;
     for (let tries = 0; tries < 7; tries++) { _p.set(base.x + Math.sin(cam.yaw) * cp * D, base.y + Math.sin(pit) * D, base.z + Math.cos(cam.yaw) * cp * D); let inside = false;
       const ns = Math.max(6, Math.ceil(D / 1.5)); for (let k = 1; k <= ns && !inside; k++) { const f = k / ns, qx = base.x + (_p.x - base.x) * f, qy = base.y + (_p.y - base.y) * f, qz = base.z + (_p.z - base.z) * f;
         for (const o of obstacles) if (o.r > 0 && qy < o.h + 0.6 && Math.hypot(qx - o.x, qz - o.z) < o.r + 0.5) { inside = true; break; } }

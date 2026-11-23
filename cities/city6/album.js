@@ -23,7 +23,8 @@ export function createAlbum({ L, FS, toast, sound }) {
   /* 蓋一方印：畫面中間一方朱印「咚」地蓋下來，再縮到右上角 */
   function stamp(chars) { const s = document.createElement("div"); s.className = "stamp"; s.textContent = chars; if (chars.length > 2) s.classList.add("s3"); document.body.append(s); requestAnimationFrame(() => s.classList.add("on")); setTimeout(() => s.classList.add("out"), 1400); setTimeout(() => s.remove(), 2100); }
   function grant(id) { if (!FS || !FS.paintSeal) return false; const S = SEALS.find((x) => x[0] === id); if (!S || !FS.paintSeal(id)) return false;
-    stamp(S[1]); sound && sound(); const n = Object.keys(st().seals).length; toast(L(`印譜多了一方「${S[1]}」（${n} / ${SEALS.length}）`, `A new seal for your album: "${S[1]}" (${n} / ${SEALS.length})`), 3800); return true; }
+    stamp(S[1]); sound && sound(); const n = Object.keys(st().seals).length; if (n === 1) toast(L(`你的第一方印「${S[1]}」。右上角紅色的「印」打開印譜：在畫裡做過的事都會蓋一方印，還有題詩和每週的長卷。`, `Your first seal: "${S[1]}". The red 印 button (top right) opens your album — seals for what you've done in the painting, plus the poem and weekly scrolls.`), 9000);
+    else toast(L(`印譜多了一方「${S[1]}」（${n} / ${SEALS.length}）`, `A new seal for your album: "${S[1]}" (${n} / ${SEALS.length})`), 4200); return true; }
   let box = null;
   function open(tab = "seal") { close(); const P = st(), en = L("", "x") === "x";
     box = document.createElement("div"); box.className = "albumov"; box.addEventListener("pointerdown", (e) => e.stopPropagation()); box.addEventListener("pointerup", (e) => e.stopPropagation());
@@ -32,9 +33,9 @@ export function createAlbum({ L, FS, toast, sound }) {
     const lines = POEM_ORDER.map((k) => (P.met || {})[k] ? `<p>${L(PEOPLE[k].line[0], PEOPLE[k].line[1])}</p>` : `<p class="blank">${L("（還沒遇見" + PEOPLE[k].name[0] + "）", "(not yet met " + PEOPLE[k].name[1] + ")")}</p>`).join("");
     const scrolls = (P.scrolls || []).slice().reverse().map((x) => `<figure><img alt="" data-src="${x.wk}"><figcaption>${x.wk}</figcaption></figure>`).join("") || `<p class="blank">${L("每個禮拜第一次來，會自動拍一段長卷收在這裡。", "Each week, your first visit adds a length of scroll here.")}</p>`;
     box.innerHTML = `<div class="abox"><div class="atabs"><button type="button" data-t="seal">${L("印譜", "Seals")} <small>${got}/${SEALS.length}</small></button><button type="button" data-t="poem">${L("題詩", "Poem")}</button><button type="button" data-t="scroll">${L("長卷", "Scrolls")}</button><button type="button" class="ax">✕</button></div>
-      <div class="apane" data-p="seal"><div class="sgrid">${seals}</div><p class="ahint">${L("點一方印看它是怎麼來的。", "Tap a seal to see how it's earned.")}</p></div>
-      <div class="apane" data-p="poem"><div class="poem">${lines}</div><p class="ahint">${L("畫裡湊齊某些景，就會有人走進來。找到他們，跟他們說說話。", "When the right things are painted, someone walks into the picture. Find them and talk to them.")}</p></div>
-      <div class="apane" data-p="scroll"><div class="scrolls">${scrolls}</div></div></div>`;
+      <div class="apane" data-p="seal"><p class="alead">${L("畫師的印譜。第一次畫出某樣東西、遇到某種天氣、湊出某些景，都會蓋上一方朱印。「？」是還沒拿到的。", "The painter's seal album. The first time you paint something, meet a kind of weather, or bring certain scenes together, a red seal goes in. \"？\" ones are still to find.")}</p><div class="sgrid">${seals}</div><p class="ahint">${L("點一方印看它是怎麼來的。", "Tap a seal to see how it's earned.")}</p></div>
+      <div class="apane" data-p="poem"><p class="alead">${L("畫裡湊齊某些景，會有四位畫中人走進來。跟他們說話，每人留下一句詩，四句湊成一首。", "When the right scenes are painted, four people walk into the picture. Talk to each one — each leaves a line, and four lines make a poem.")}</p><div class="poem">${lines}</div><p class="ahint">${L("畫裡湊齊某些景，就會有人走進來。找到他們，跟他們說說話。", "When the right things are painted, someone walks into the picture. Find them and talk to them.")}</p></div>
+      <div class="apane" data-p="scroll"><p class="alead">${L("每個禮拜第一次來，畫師會把整座城收成一段長卷。一週一段，看得出這幅畫怎麼慢慢長大。", "On your first visit each week, the painter rolls the whole town into a length of scroll — one a week, so you can see the painting grow.")}</p><div class="scrolls">${scrolls}</div></div></div>`;
     document.body.append(box); void en;
     (P.scrolls || []).forEach((x) => { const im = box.querySelector(`img[data-src="${x.wk}"]`); if (im) im.src = x.url; });
     const show = (t) => { box.querySelectorAll(".atabs [data-t]").forEach((b) => b.classList.toggle("on", b.dataset.t === t)); box.querySelectorAll(".apane").forEach((p) => { p.hidden = p.dataset.p !== t; }); };

@@ -26,9 +26,9 @@ function summarize(pts) { let len = 0, x0 = Infinity, y0 = Infinity, x1 = -Infin
   const dur = pts.length > 1 ? (pts[pts.length - 1][2] - pts[0][2]) / 1000 : 0; return { pts, len, box: [x0, y0, x1, y1], dur, speed: dur > 0 ? len / dur : 0 }; }
 export function classify(st) { const [x0, y0, x1, y1] = st.box, w = x1 - x0, h = y1 - y0, big = Math.max(w, h), a = st.pts[0], b = st.pts[st.pts.length - 1], chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  if (st.pts.length < 3 || big < 16) return { kind: "dot", cx: a[0], cy: a[1] };
-  if (chord < big * 0.35 && st.len > big * 2.2) return { kind: "circle", cx, cy, r: big / 2 };
-  if (chord / st.len > 0.78) { const ang = Math.abs(Math.atan2(b[1] - a[1], b[0] - a[0])) * 180 / Math.PI, deg = ang > 90 ? 180 - ang : ang;
-    if (deg > 58) return { kind: "vert", cx, cy, top: [x0 + (a[1] < b[1] ? a[0] - x0 : b[0] - x0), y0], bottom: a[1] > b[1] ? [a[0], a[1]] : [b[0], b[1]] };
-    if (deg < 30) return { kind: "horiz", cx, cy, a: [a[0], a[1]], b: [b[0], b[1]] }; }
+  if (st.pts.length < 3 || big < 22) return { kind: "dot", cx: a[0], cy: a[1] };
+  if (chord < big * 0.45 && st.len > big * 2) return { kind: "circle", cx, cy, r: big / 2 };
+  if (chord / st.len > 0.75) { const ang = Math.abs(Math.atan2(b[1] - a[1], b[0] - a[0])) * 180 / Math.PI, deg = ang > 90 ? 180 - ang : ang;
+    if (deg > 55) return { kind: "vert", cx, cy, top: [x0 + (a[1] < b[1] ? a[0] - x0 : b[0] - x0), y0], bottom: a[1] > b[1] ? [a[0], a[1]] : [b[0], b[1]] };
+    if (deg < 35) return { kind: "horiz", cx, cy, a: [a[0], a[1]], b: [b[0], b[1]] }; }
   return { kind: "curve", cx, cy, pts: st.pts.filter((_, i) => i % Math.max(1, Math.floor(st.pts.length / 8)) === 0).concat([b]).map((p) => [p[0], p[1]]) }; }
