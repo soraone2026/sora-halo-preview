@@ -46,6 +46,8 @@ export function createInkAudio(seed = 1) {
     fix() { if (!ok()) return; const t = now(); for (let i = 0; i < 6; i++) pluck(t + i * 0.14, mtof(root + 12 + PENTA[i]), 0.5, 3.2, true); chime(t + 1, mtof(root - 12), 6); },
     hum() { if (!ok()) return; chime(now(), mtof(root - 12), 7); },
     voice(i) { if (!ok()) return; const t = now(), base = root + 7 + (i % 5) * 2; for (let k = 0; k < 3; k++) pluck(t + k * 0.15, mtof(base + PENTA[(k * 2 + i) % 6]), 0.4, 0.9); },
+    dab() { if (!ok()) return; const t = now(); if (t - (this._dab || 0) < 0.09) return; this._dab = t; brush(t, 0.18 + Math.random() * 0.12); },
+    seal() { if (!ok()) return; const t = now(); const o = c.createOscillator(), g = c.createGain(); o.type = "sine"; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.25); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35); o.connect(g).connect(sfx); o.start(t); o.stop(t + 0.4); chime(t + 0.15, mtof(root + 24), 3); },
     fall() { if (!ok()) return; const t = now(); brush(t, 1.4); for (let i = 0; i < 8; i++) pluck(t + 0.3 + i * 0.22, mtof(root + 24 - PENTA[i]), 0.35, 2.4, i % 2 === 0); },
   };
 }

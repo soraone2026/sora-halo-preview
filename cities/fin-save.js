@@ -177,11 +177,25 @@
     growState: function (city) { var s = read(), G = (s && s.grow && s.grow[city]) || {}; return { ok: !!s, steps: G.steps || 0, slots: (G.slots || []).slice(), lv: JSON.parse(JSON.stringify(G.lv || {})), last: G.last || null, visits: G.visits || 0, night: G.night || 0, pend: G.pend || null, story: G.story || null }; },
     growVisit: function (city, hour, offer) { var s = read(); if (!s) return null; var d = today(), R = s.grow = s.grow || {}, G = R[city] = R[city] || { steps: 0, slots: [], lv: {} };
       if (G.last === d) return this.growState(city); G.last = d; G.visits = (G.visits || 0) + 1; if (hour >= 18 || hour < 6) G.night = (G.night || 0) + 1;
-      if (!G.pend && offer && offer.length === 2) G.pend = { d: d, o: offer.slice(0, 2) }; write(s); return this.growState(city); },
-    growChoose: function (city, type, max) { var s = read(); if (!s) return null; var G = s.grow && s.grow[city]; if (!G || !G.pend || G.pend.o.indexOf(type) < 0) return null;
-      var slot = -1; if ((G.slots || []).length < (max || 12)) { G.slots = G.slots || []; G.slots.push(type); slot = G.slots.length - 1; } else { G.lv = G.lv || {}; G.lv[type] = Math.min(3, (G.lv[type] || 0) + 1); }
+      if (!G.pend && offer && offer.length >= 1) G.pend = { d: d, o: offer.slice(0, 2) }; write(s); return this.growState(city); },
+    growChoose: function (city, type, max, store) { var s = read(); if (!s) return null; var G = s.grow && s.grow[city]; if (!G || !G.pend || G.pend.o.indexOf(type) < 0) return null;   /* store：實際存進去的樣子（例如留白城：描稿描出來的濃淡「bamboo@3」） */
+      var slot = -1; if ((G.slots || []).length < (max || 12)) { G.slots = G.slots || []; G.slots.push(store || type); slot = G.slots.length - 1; } else { G.lv = G.lv || {}; G.lv[type] = Math.min(3, (G.lv[type] || 0) + 1); }
       G.steps = (G.steps || 0) + 1; G.pend = null; write(s); return { slot: slot, state: this.growState(city) }; },
     growStory: function (city) { var s = read(); if (!s) return false; var G = (s.grow = s.grow || {})[city] = (s.grow[city] || { steps: 0, slots: [], lv: {} }); if (G.story) return false; G.story = today(); write(s); return true; },
+    /* 2026-11-23 留白城（熊：「一筆可以自己畫」「可以玩的、可以收集的太少」）：s.paint = { d, used, marks[], seals{}, met{}, scrolls[] }
+     * - 閒筆：每天能畫的筆數＝3＋今天做完的小事＋（今天有記帳就再 2）；畫出來的小東西存在 marks（最多 80 筆，舊的先拿掉）
+     * - 印譜 seals{id: 第一次拿到的日期}、畫中人 met{id: 日期}、長卷 scrolls[{wk, url}]（最多 8 段） */
+    paintState: function () { var s = read(), d = today(), P = (s && s.paint) || {}, allow = this.paintAllow();
+      return { ok: !!s, used: P.d === d ? P.used || 0 : 0, allow: allow, marks: (P.marks || []).slice(), seals: JSON.parse(JSON.stringify(P.seals || {})), met: JSON.parse(JSON.stringify(P.met || {})), scrolls: (P.scrolls || []).slice() }; },
+    paintAllow: function () { var s = read(); if (!s) return 0; var d = today(), T = s.stars && s.stars.liubai, n = 3 + (T && T.d === d ? (T.got || []).length : 0);
+      if (((s.records && s.records.finance) || []).some(function (r) { return r && r.date === d; })) n += 2; return n; },
+    paintMark: function (m) { var s = read(); if (!s || !m || !m.k) return null; var d = today(), P = s.paint = s.paint || {}; if (P.d !== d) { P.d = d; P.used = 0; } var allow = this.paintAllow();
+      if ((P.used || 0) >= allow) return { ok: false, left: 0 }; P.used = (P.used || 0) + 1; P.marks = P.marks || []; m.id = m.id || ("M" + Date.now().toString(36) + Math.floor(Math.random() * 1e4)); m.day = d; P.marks.push(m); while (P.marks.length > 80) P.marks.shift();
+      write(s); return { ok: true, left: allow - P.used, id: m.id }; },
+    paintSeal: function (id) { var s = read(); if (!s) return false; var P = s.paint = s.paint || {}; P.seals = P.seals || {}; if (P.seals[id]) return false; P.seals[id] = today(); write(s); return true; },
+    paintMet: function (id) { var s = read(); if (!s) return false; var P = s.paint = s.paint || {}; P.met = P.met || {}; if (P.met[id]) return false; P.met[id] = today(); write(s); return true; },
+    paintScroll: function (wk, url) { var s = read(); if (!s || typeof url !== "string" || url.indexOf("data:image/jpeg") !== 0 || url.length > 120000) return false; var P = s.paint = s.paint || {}; P.scrolls = (P.scrolls || []).filter(function (x) { return x.wk !== wk; });
+      P.scrolls.push({ wk: wk, url: url, date: today() }); while (P.scrolls.length > 8) P.scrolls.shift(); write(s); return true; },
     // 小鎮修到哪裡（星門修好，城市的星港之環就打開）
     townDone: function (id) { var s = read(); return !!s && !!s.town && (s.town.done || []).indexOf(id) >= 0; },
   };

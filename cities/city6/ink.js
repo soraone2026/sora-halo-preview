@@ -14,7 +14,9 @@ import { makeTrio } from "../city/cityx.js";
 import { makeGames } from "../city/minigame.js";
 import { makeNameTag, playerName } from "../city/nametag.js";
 import { NIKO_LOOK, makeFigure, tickFigure, tourLink, invitePanel, makeCard, cardPanel } from "../city/together.js";
-import { growStart, growPanel, storyCard, BUCKETS } from "../city/grow.js";
+import { growStart, storyCard, BUCKETS } from "../city/grow.js";
+import { createBrush, classify } from "./brush.js";
+import { createAlbum, PEOPLE, POEM_ORDER } from "./album.js";
 try { if (window.parent !== window) document.body.classList.add("embed"); } catch (e) { document.body.classList.add("embed"); }
 
 const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.170.0/+esm";
@@ -33,6 +35,9 @@ function rngOf(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >
 
 const DAY = todayStr(), rnd = rngOf(seedOf(CITY + ":" + DAY)), LAND = 40, WIND_T = 26;
 const PAPER = "#ece4d4", INK = "#1d1a18", CINNABAR = "#c03a2b";
+/* 天氣（跟著日期）：晴、雨、霧；冬天才會下雪。?wx=rain 可以預覽 */
+const WX = (() => { const q = QS.get("wx"); if (["clear", "rain", "mist", "snow"].includes(q)) return q; const r = rngOf(seedOf("wx:" + DAY))(), m = +DAY.slice(5, 7), winter = m === 12 || m <= 2; return r < 0.58 ? "clear" : r < 0.78 ? "rain" : r < 0.9 ? "mist" : winter ? "snow" : "rain"; })();
+const WXN = { clear: ["晴", "clear"], rain: ["雨", "rain"], mist: ["霧", "mist"], snow: ["雪", "snow"] };
 const FS = window.FinSave && FinSave.ok() ? FinSave : null, ST0 = FS && FS.starState ? FS.starState(CITY) : { got: [], n: 0, days: 0 };
 const audio = createInkAudio(seedOf(CITY + ":" + DAY));
 const sndLabel = () => { const b = $("#snd"); if (b) { b.textContent = "♪"; b.title = audio.on ? L("關掉聲音", "Mute") : L("打開聲音", "Sound on"); b.classList.toggle("off", !audio.on); } };
@@ -205,7 +210,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     fallRibbon = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 12), new THREE.MeshBasicMaterial({ map: fT, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })); fallRibbon.position.set(-2.1, 6, -1.5); fallRibbon.rotation.y = Math.PI / 2; g.add(fallRibbon);
     pool = new THREE.Mesh(new THREE.CircleGeometry(2.8, 40), new THREE.MeshBasicMaterial({ color: "#d8d2c6", transparent: true, opacity: 0.9 })); pool.rotation.x = -Math.PI / 2; pool.position.set(0.4, 0.05, -1.5); g.add(pool); obstacles.push({ x: S.x + 0.4, z: S.z - 1.5, r: 2.6, h: 0.6 });
     for (let k = 0; k < 4; k++) { const m = spr(softT, "#ffffff", 5, 0); m.position.set(-1.6 + k * 0.7, 0.8 + k * 0.6, -1.5); g.add(m); fallMist.push(m); }
-    S.draw = (k, done, t) => { fallRibbon.material.opacity = done ? 0.9 : S.k * 0.25; pool.material.color.set(done ? "#b8c4c6" : "#d8d2c6"); if (done) fT.offset.y = -(t * 0.6) % 1; fallMist.forEach((m, i) => { m.material.opacity = done ? 0.35 + Math.sin(t + i) * 0.1 : 0; }); audio.water(done ? 1 : 0); }; }
+    S.draw = (k, done, t) => { fallRibbon.material.opacity = done ? 0.9 : S.k * 0.25; pool.material.color.set(done ? "#b8c4c6" : "#d8d2c6"); if (done) fT.offset.y = -(t * 0.6) % 1; fallMist.forEach((m, i) => { m.material.opacity = done ? 0.35 + Math.sin(t + i) * 0.1 : 0; }); audio.water(done ? 1 : WX === "rain" ? 0.6 : 0); }; }
 
   /* ---------- 添的每一筆：十二種畫法（濃淡 d：1 淡、2 中、3 濃） ---------- */
   const SLOTS = [[-12, -10], [12, -11], [-15, 8], [-7, 17], [8, 16], [14, 4], [-20, -24], [16, -26], [-30, 8], [30, -12], [31, 12], [0, 30]];
@@ -288,7 +293,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   function finish(e) { if (e.state !== "wait") return;
     if (!QS.get("day") && todayStr() !== DAY) { toast(L("過了午夜，畫換了一頁。重新整理……", "Midnight has passed — the painting turns a page. Reloading…")); setTimeout(() => location.reload(), 1600); return; }
     e.state = "go"; e.t = 0; audio.task();
-    const r = FS && FS.starDone ? FS.starDone(CITY, e.i) : null, cnt = evs.filter((x) => x.state !== "wait").length; showCount();
+    const r = FS && FS.starDone ? FS.starDone(CITY, e.i) : null, cnt = evs.filter((x) => x.state !== "wait").length; showCount(); try { bar(); } catch (er) { }
     const what = e.kind === "lamp" ? L("石燈亮了", "The stone lantern is lit") : L("墨蝶停在你的指尖", "The ink butterfly rests on your fingertip");
     if (r) { toast(L(`${what}（${r.count}/5）　+1 B・松煙墨 +${r.mat || 1}`, `${what} (${r.count}/5)  +1 B · pine-soot ink +${r.mat || 1}`), 4200); fixes.refresh();
       if (r.bonus) setTimeout(() => { const b = r.bonus; say(L("五件事都做完了。整幅畫的墨色，像是深了一點。", "All five are done. The ink of the whole painting seems a shade deeper."), b.type === "ore" ? L("回響：一顆原石", "Echo: a raw gem") : b.type === "dew" ? L(`回響：元液 +${b.n}`, `Echo: essence +${b.n}`) : L(`回響：+${b.n} B`, `Echo: +${b.n} B`), 7500); audio.fix(); }, 2600); }
@@ -349,7 +354,10 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     onLight: (n, N) => { if (n < N) toast(L(`簷鈴（${n}/${N}）`, `Eave bells (${n}/${N})`), 2000); },
     onAll: () => { audio.fix(); say(L("三個小鈴一起響了一聲，霧好像散開了一點。", "The three little bells chime together, and the mist seems to part a little."), L("簷鈴", "Eave bells"), 6500); const r = FS && FS.cityxDo ? FS.cityxDo(CITY) : null; if (r) setTimeout(() => toast(L(`✨ 今天的小事完成了　+${r.b} B${r.matN ? `・${MZ[r.mat][0]} +${r.matN}` : ""}${r.ess ? `・元液 +${r.ess}` : ""}`, `✨ Today's little thing is done  +${r.b} B${r.matN ? ` · ${MZ[r.mat][1]} +${r.matN}` : ""}${r.ess ? ` · essence +${r.ess}` : ""}`), 4200), 1800); } });
   const mg = makeGames({ THREE, scene, pickables, city: CITY, L, toast, list: [
-    { key: "plum", type: "catch", pos: [-10.5, 0, -4.5], icon: "🌸", color: "#e8a8a0", title: ["接落梅", "Falling Plum"], intro: ["風把梅花吹下來了。拖著小籃子接住花瓣，別接到墨滴。", "The wind is shaking down the plum blossom. Drag the basket to catch the petals — not the ink drops."], how: ["左右拖動畫面移動籃子", "Drag left and right to move the basket"], theme: { bg: "#e8e0d0", bg2: "#c8bca8", fg: "#3a2a22", good: ["🌸", "🌺", "🍃", "🪷"], bad: ["💧"], basket: "🧺" } },
+    { key: "plum", type: "catch", pos: [-10.5, 0, -4.5], icon: "🌸", color: "#e8a8a0", title: ["接落梅", "Falling Plum"], intro: ["風把梅花吹下來了。拖著小籃子接住紅色的梅花，別接到黑色的墨滴。", "The wind is shaking down the plum blossom. Drag the basket to catch the red blossoms — not the black ink drops."], how: ["左右拖動畫面移動籃子", "Drag left and right to move the basket"], theme: { bg: "#efe6d4", bg2: "#cfc2a8", fg: "#3a2a22", good: ["梅"], bad: ["墨"], basket: "🧺", speed: 0.8, paint: (c, q, t) => { c.save(); c.translate(q.x, q.y);   /* 熊：從頭到尾看不到梅花——改成自己畫：朱紅五瓣梅、黑色墨滴 */
+      if (q.bad) { c.fillStyle = "#1d1a18"; c.beginPath(); c.moveTo(0, -18); c.bezierCurveTo(13, -2, 11, 15, 0, 15); c.bezierCurveTo(-11, 15, -13, -2, 0, -18); c.fill(); }
+      else { c.rotate(q.r + t * 0.8); c.fillStyle = "#c03a2b"; for (let i = 0; i < 5; i++) { c.rotate(Math.PI * 2 / 5); c.beginPath(); c.ellipse(0, -11, 8, 10, 0, 0, 7); c.fill(); } c.fillStyle = "#f2d27a"; c.beginPath(); c.arc(0, 0, 4.5, 0, 7); c.fill(); c.fillStyle = "#1d1a18"; for (let i = 0; i < 5; i++) { c.beginPath(); c.arc(Math.cos(i * 1.257) * 7, Math.sin(i * 1.257) * 7, 1.4, 0, 7); c.fill(); } }
+      c.restore(); } } },
     { key: "seals", type: "memory", pos: [10.5, 0, -3.5], icon: "🀄", color: "#c03a2b", title: ["印章配對", "Seal Pairs"], intro: ["畫師的印章散了一桌。翻開兩方，找到一樣的。", "The painter's seals are scattered across the desk. Turn over two and find the matching ones."], how: ["一次翻兩張", "Turn over two at a time"], theme: { bg: "#e8e0d0", bg2: "#d0c4b0", fg: "#3a2a22", card: "#c03a2b", back: "印", pairs: ["🌸", "🎋", "🏮", "🪷", "🍵", "🌙"] } }] });
   window.__mg = { play: (i) => mg.play(i), cur: () => mg.cur, pos: (i) => mg.pos(i).toArray().map((v) => +v.toFixed(2)) };
 
@@ -377,24 +385,147 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
       if (!card) { toast(L("拍不到畫面，再試一次", "Couldn't capture the view — try again")); return; } audio.task();
       cardPanel({ card, cityName: L("留白城", "Liubai"), mates: Object.values(together.others).map((f) => ({ uid: f.uid, name: f.name })), L, toast }); }); }
 
-  /* ---------- 今天要添哪一筆 ---------- */
+  const ray = new THREE.Raycaster(), _h = new V3(), _nd = new THREE.Vector2(), groundPl = new THREE.Plane(new V3(0, 1, 0), 0);
+  /* ---------- 收藏：印譜、題詩、長卷 ---------- */
+  const album = createAlbum({ L, FS, toast, sound: () => audio.seal() });
+  /* ---------- 天氣（跟著日期）：晴、雨、霧；冬天才會下雪 ---------- */
+  let wxPts = null, wxPos = null, wxN = 0;
+  if (WX === "mist") { scene.fog.near = 12; scene.fog.far = 110; }
+  if (WX === "rain" || WX === "snow") { wxN = SMALL ? 360 : 700; wxPos = new Float32Array(wxN * 3); for (let i = 0; i < wxN; i++) wxPos.set([(R0() - 0.5) * 70, R0() * 34, (R0() - 0.5) * 70], i * 3);
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(wxPos, 3));
+    const rainT = canvasTex(8, 64, (c) => { const gr = c.createLinearGradient(0, 0, 0, 64); gr.addColorStop(0, "rgba(30,26,24,0)"); gr.addColorStop(1, "rgba(30,26,24,.7)"); c.fillStyle = gr; c.fillRect(3, 0, 2, 64); });
+    wxPts = new THREE.Points(g, new THREE.PointsMaterial(WX === "rain" ? { map: rainT, size: 1.6, transparent: true, opacity: 0.55, depthWrite: false } : { map: softT, color: "#ffffff", size: 0.55, transparent: true, opacity: 0.95, depthWrite: false })); wxPts.frustumCulled = false; scene.add(wxPts);
+    ground.material.color.set(WX === "rain" ? "#cfc6b4" : "#f8f5ef"); }
+
+  /* ---------- 墨點滲開的小特效（描稿、閒筆共用一組，輪流用） ---------- */
+  const blots = Array.from({ length: 28 }, () => { const b = spr(blotT, "#ffffff", 1, 0); b.material.depthTest = false; b.renderOrder = 8; b.visible = false; scene.add(b); return { b, t: 9 }; }); let blotI = 0;   /* 沒在用就不畫 */
+  const blotAt = (p, s = 1.2) => { const q = blots[blotI++ % blots.length]; q.b.position.copy(p); q.t = 0; q.s = s; q.b.visible = true; };
+
+  /* ---------- 今天的一筆：畫師依你的日子起好稿（淡淡的鉛筆線），你拿起筆沿著稿刷過去，墨才滲開 ---------- */
   const pick = (feed, r) => { const b = (feed && feed.b) || {}, have = new Set((FS.growState(CITY).slots || []).map((s) => strokeOf(s).k)), order = BUCKETS.slice().sort((x, y) => (b[y] || 0) - (b[x] || 0) || r() - 0.5);
-    const top = (b[order[0]] || 0) > 0 ? order[0] : null, d = Math.max(1, Math.min(3, ((feed && feed.recDays) || 0) >= 6 ? 3 : ((feed && feed.recDays) || 0) >= 2 ? 2 : 1));
-    const from = (bk) => { const c = BUCKET_STROKES[bk], fresh = c.filter((k) => !have.has(k)); const pool = fresh.length ? fresh : c; return pool[Math.floor(r() * pool.length)]; };
-    const a = from(top || order[Math.floor(r() * 6)]); let second = null; for (const bk of order.slice(top ? 1 : 0)) { if (bk === top) continue; const s2 = from(bk); if (s2 !== a && ((b[bk] || 0) > 0 || !second)) { second = s2; if ((b[bk] || 0) > 0) break; } }
-    if (!second || second === a) { const all = Object.keys(STROKE).filter((k) => k !== a); second = all[Math.floor(r() * all.length)]; }
-    return { offer: [`${a}@${d}`, `${second}@${d}`], top }; };
-  const panelInfo = (id) => { const S = STROKE[strokeOf(id).k], dd = strokeOf(id).d; return { icon: `<i class="inkch">${S.ch}</i>`, name: S.name, desc: [S.desc[0] + (dd === 3 ? "（濃墨）" : dd === 1 ? "（淡墨）" : ""), S.desc[1]] }; };
-  const showGrowth = () => { const n = strokes.length, c = $("#clock"); c.textContent = L(`${n} 筆`, `${n} stroke${n === 1 ? "" : "s"}`); c.title = L(`這幅畫已經添了 ${n} 筆`, `${n} strokes added to the painting`); };
-  let growUI = null;
-  function offerNow() { if (!FS || cut) return; const g = growStart({ city: CITY, map: pick, rnd }); placeSeals(g.state && g.state.visits); if (g.state) { moon.material.map = moonT(g.state.night); moon.material.needsUpdate = true; } if (!g.offer) { showGrowth(); return; }
-    const why = g.top ? L(WHY[g.top][0], WHY[g.top][1]) : L("硯台很安靜。今天這兩筆，是風送來的。", "The inkstone is quiet. Today's two strokes came on the wind.");
-    growUI = growPanel({ L, info: panelInfo, offer: g.offer, title: L("今天的留白，要添哪一筆？", "Which stroke for today's blank space?"), why,
-      onPick: (id) => { const r = FS.growChoose(CITY, id, SLOTS.length); growUI = null; if (!r) return; addNew(id, r); }, onLater: () => { growUI = null; toast(L("硯台裡的墨會等你。", "The ink will wait in the stone.")); } }); }
-  function addNew(id, r) { const S = STROKE[strokeOf(id).k];
-    if (r.slot >= 0) { const st = addStroke(r.slot, id, true); audio.stroke(); say(L(`「${S.name[0]}」——畫師添了一筆。`, `"${S.name[1]}" — the painter adds a stroke.`), L("硯翁", "Old Inkstone"), 6000); if (st) { cam.yaw = Math.atan2(P.x - st.x, P.z - st.z); cam.want = Math.max(cam.want, 20); } }
-    else { audio.stroke(); say(L(`「${S.name[0]}」的墨又深了一層。`, `The ink of "${S.name[1]}" deepens another shade.`), L("硯翁", "Old Inkstone"), 6000); }
-    showGrowth(); }
+    const top = (b[order[0]] || 0) > 0 ? order[0] : null, from = (bk) => { const c = BUCKET_STROKES[bk], fresh = c.filter((k) => !have.has(k)); const pool = fresh.length ? fresh : c; return pool[Math.floor(r() * pool.length)]; };
+    let k = from(top || order[Math.floor(r() * 6)]); if (have.has(k)) { const rest = Object.keys(STROKE).filter((x) => !have.has(x)); if (rest.length && !top) k = rest[Math.floor(r() * rest.length)]; }
+    return { offer: [k], top }; };
+  let sketch = null, mode = null, why = "";
+  const PENCIL = new THREE.Color("#9a9286");
+  function makeSketch(base) { const slot = (FS.growState(CITY).slots || []).length; if (slot >= SLOTS.length) return null; const [x, z] = SLOTS[slot], { g, wobs } = paint(base + "@2", x, z);
+    wobs.forEach((o) => tog(o, false)); const mats = []; g.traverse((o) => { if (o.userData.outline) { o.visible = false; return; } if (!o.material) return; o.material = o.material.clone(); o.material.transparent = true;
+      mats.push({ m: o.material, col: o.material.color ? o.material.color.clone() : null, op: o.material.opacity }); if (o.material.color) o.material.color.copy(PENCIL); o.material.opacity = 0.3; });
+    g.updateMatrixWorld(true); const pts = [], _v = new V3(), _m = new THREE.Matrix4();
+    g.traverse((o) => { if (o.userData.outline) return; if (o.isInstancedMesh) { for (let i = 0; i < o.count; i += 2) { o.getMatrixAt(i, _m); _v.setFromMatrixPosition(_m); const sy = new V3().setFromMatrixScale(_m).y; for (const f of [-0.3, 0.1, 0.4]) pts.push(_v.clone().add(new V3(0, sy * f, 0)).applyMatrix4(o.matrixWorld)); } }
+      else if (o.isMesh || o.isPoints) { const p = o.geometry.attributes.position, step = Math.max(1, Math.floor(p.count / (o.isPoints ? 6 : 10))); for (let i = 0; i < p.count; i += step) pts.push(new V3(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(o.matrixWorld)); }
+      else if (o.isSprite) pts.push(o.getWorldPosition(new V3())); });
+    while (pts.length > 70) pts.splice(Math.floor(rnd() * pts.length), 1);
+    return { base, g, wobs, mats, pts, hit: pts.map(() => false), k: 0, speeds: [], slot, x, z }; }
+  function sketchShow(k) { for (const q of sketch.mats) { if (q.col) q.m.color.copy(PENCIL).lerp(q.col, k); q.m.opacity = 0.3 + (q.op - 0.3) * k; } if (k > 0.55) sketch.g.traverse((o) => { if (o.userData.outline) o.visible = true; }); }
+  const _sv = new V3();
+  function traceAt(x, y, sp) { if (!sketch) return; const R = Math.max(26, Math.min(46, Math.min(innerWidth, innerHeight) * 0.055)); let n = 0;
+    sketch.pts.forEach((p, i) => { if (sketch.hit[i]) return; _sv.copy(p).project(camera); if (_sv.z > 1) return; const sx = (_sv.x + 1) / 2 * innerWidth, sy = (1 - _sv.y) / 2 * innerHeight; if (Math.hypot(sx - x, sy - y) < R) { sketch.hit[i] = true; n++; if (n < 3) blotAt(p, 0.8 + rnd() * 0.8); } });
+    if (sp > 0) sketch.speeds.push(sp); const k = sketch.hit.filter(Boolean).length / sketch.hit.length; if (k !== sketch.k) { sketch.k = k; sketchShow(k); bar(); if (n) audio.dab(); } if (k >= 0.8) inkDone(); }
+  function inkDone() { const S = sketch; if (!S || S.done) return; S.done = true; const sp = S.speeds.length ? S.speeds.reduce((a, b) => a + b, 0) / S.speeds.length : 900, d = sp < 650 ? 3 : sp < 1500 ? 2 : 1, id = `${S.base}@${d}`;
+    const r = FS.growChoose(CITY, S.base, SLOTS.length, id); scene.remove(S.g); sketch = null; setMode(null); if (!r) { bar(); return; }
+    addStroke(r.slot >= 0 ? r.slot : S.slot, id, true); audio.stroke(); const N = STROKE[S.base];
+    say(L(`「${N.name[0]}」${d === 3 ? "——墨下得又沉又滿。" : d === 1 ? "——幾筆飛白，很輕。" : "——墨色正好。"}`, `"${N.name[1]}" — ${d === 3 ? "the ink went down deep and full." : d === 1 ? "a few light, dry strokes." : "the ink is just right."}`), L("硯翁", "Old Inkstone"), 6500);
+    album.grant("e:" + S.base); checkAll(); showGrowth(); bar(); }
+
+  /* ---------- 閒筆：在留白的地方隨手畫，畫的樣子變成小東西（每天能畫幾筆看墨夠不夠） ---------- */
+  const marks = [];   /* { m, g, rev, anim } */
+  const groundAt = (sx, sy) => { _nd.set(sx / innerWidth * 2 - 1, -(sy / innerHeight) * 2 + 1); ray.setFromCamera(_nd, camera); if (!ray.ray.intersectPlane(groundPl, _h)) return null; const d = _h.distanceTo(camera.position); return d < 90 && Math.hypot(_h.x, _h.z) < LAND + 6 ? _h.clone() : null; };
+  const skyAt = (sx, sy) => { _nd.set(sx / innerWidth * 2 - 1, -(sy / innerHeight) * 2 + 1); ray.setFromCamera(_nd, camera); return camera.position.clone().addScaledVector(ray.ray.direction, 42); };
+  const lotusT = canvasTex(64, 64, (c) => { c.fillStyle = "#6a7468"; c.beginPath(); c.arc(32, 32, 28, 0.3, Math.PI * 2 - 0.1); c.lineTo(32, 32); c.fill(); c.strokeStyle = "rgba(20,20,18,.6)"; c.lineWidth = 2; for (let a = 0; a < 6; a++) { c.beginPath(); c.moveTo(32, 32); c.lineTo(32 + Math.cos(a) * 26, 32 + Math.sin(a) * 26); c.stroke(); } });
+  const cloudT = canvasTex(256, 128, (c) => { c.strokeStyle = "rgba(30,26,24,.55)"; c.lineWidth = 6; c.lineCap = "round"; for (const [x, y, r] of [[80, 70, 34], [130, 56, 40], [180, 72, 30]]) { c.beginPath(); c.arc(x, y, r, Math.PI * 0.9, Math.PI * 2.2); c.stroke(); c.beginPath(); c.arc(x + 6, y + 4, r * 0.5, Math.PI, Math.PI * 2.3); c.stroke(); } });
+  function buildMark(m, reveal) { const g = new THREE.Group(), r = rngOf(seedOf(m.id || "m")); let anim = null;
+    if (m.k === "plum") { const tw = outline(mesh(new THREE.CylinderGeometry(0.03, 0.05, 1.1, 5), 0.85), 0.1); tw.position.y = 0.55; tw.rotation.z = (r() - 0.5) * 0.6; g.add(tw); const bl = []; for (let i = 0; i < 9; i++) bl.push((r() - 0.5) * 0.9, 0.6 + r() * 0.8, (r() - 0.5) * 0.9);
+      const bg = new THREE.BufferGeometry(); bg.setAttribute("position", new THREE.Float32BufferAttribute(bl, 3)); g.add(new THREE.Points(bg, new THREE.PointsMaterial({ map: softT, color: CINNABAR, size: 0.5, transparent: true, depthWrite: false }))); g.position.set(m.x, 0, m.z); }
+    else if (m.k === "lantern") { const lan = outline(new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 10), new THREE.MeshBasicMaterial({ color: CINNABAR, map: brushT })), 0.06); lan.scale.y = 1.3; g.add(lan); const gl = spr(softT, "#ffb08a", 2.6, 0.5); g.add(gl); g.position.set(m.x, m.y, m.z); anim = (t) => { g.position.y = m.y + Math.sin(t * 0.6 + m.x) * 0.5; }; }
+    else if (m.k === "lotus") { const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.5, 40), new THREE.MeshBasicMaterial({ color: "#3a3430", transparent: true, opacity: 0.7, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
+      const pond = new THREE.Mesh(new THREE.CircleGeometry(1.4, 32), new THREE.MeshBasicMaterial({ map: waterT })); pond.rotation.x = -Math.PI / 2; pond.position.y = 0.04; g.add(pond);
+      for (let i = 0; i < 3; i++) { const lf = new THREE.Mesh(new THREE.CircleGeometry(0.42, 16), new THREE.MeshBasicMaterial({ map: lotusT, transparent: true })); lf.rotation.set(-Math.PI / 2, 0, r() * 6); lf.position.set((r() - 0.5) * 1.6, 0.07, (r() - 0.5) * 1.6); g.add(lf); }
+      const bud = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.4, 8), new THREE.MeshBasicMaterial({ color: "#e8a0a0" })); bud.position.set(0.3, 0.45, 0.2); g.add(bud); g.position.set(m.x, 0, m.z); }
+    else if (m.k === "shoot") { for (let i = 0; i < 3; i++) { const s = outline(mesh(new THREE.ConeGeometry(0.16, 0.7 + r() * 0.6, 7), 0.7), 0.08); s.position.set((r() - 0.5) * 1, 0.4, (r() - 0.5) * 1); g.add(s); } g.position.set(m.x, 0, m.z); }
+    else if (m.k === "reed") { const n = Math.max(3, Math.min(14, Math.round(Math.hypot(m.x2 - m.x, m.z2 - m.z) / 0.6))); for (let i = 0; i < n; i++) { const f = i / (n - 1 || 1), h = 1 + r() * 0.9, st = mesh(new THREE.CylinderGeometry(0.015, 0.03, h, 4), 0.8); st.position.set(m.x + (m.x2 - m.x) * f + (r() - 0.5) * 0.3, h / 2, m.z + (m.z2 - m.z) * f + (r() - 0.5) * 0.3); st.rotation.z = (r() - 0.5) * 0.3; g.add(st);
+        const pl = mesh(new THREE.ConeGeometry(0.06, 0.32, 5), 0.55); pl.position.set(st.position.x, h + 0.1, st.position.z); g.add(pl); } }
+    else if (m.k === "geese") { for (let i = 0; i < 5; i++) { const s = spr(craneT, "#ffffff", 1.1, 0.85); s.position.set(m.x + (i - 2) * 1.3, m.y - Math.abs(i - 2) * 0.6, m.z + Math.abs(i - 2) * 0.8); g.add(s); } anim = (t) => { g.position.x = Math.sin(t * 0.05 + m.x) * 6; }; }
+    else if (m.k === "path") { const P2 = m.pts || []; for (let i = 0; i < P2.length; i++) { const st = mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.08, 9), 0.45); st.scale.set(1 + r() * 0.3, 1, 0.75 + r() * 0.3); st.rotation.y = r() * 3; st.position.set(P2[i][0], 0.05, P2[i][1]); g.add(st); } }
+    else { const s = spr(cloudT, "#ffffff", 9, 0.8); s.scale.y = 4.5; g.add(s); g.position.set(m.x, m.y, m.z); anim = (t) => { g.position.x = m.x + Math.sin(t * 0.04 + m.z) * 4; }; }
+    scene.add(g); const mats = reveal ? tagged(g) : null; if (mats) mats.forEach(([mt]) => { mt.opacity = 0; }); const it = { m, g, anim, rev: reveal ? { t: 0, mats } : null }; marks.push(it); return it; }
+  const MARK_NAME = { plum: ["一枝梅", "a sprig of plum"], lantern: ["一盞天燈", "a sky lantern"], lotus: ["一池蓮", "a lotus pond"], shoot: ["幾根竹筍", "a few bamboo shoots"], reed: ["一排蘆葦", "a row of reeds"], geese: ["一行雁", "a line of geese"], path: ["一條石徑", "a stone path"], cloud: ["一朵雲", "a cloud"] };
+  function freeStroke(st) { const cl = classify(st);
+    /* 先看是不是今天的小事：在石燈上畫個圈、沿著墨蝶描一筆 */
+    for (const e of evs) { if (e.state !== "wait") continue; const wp = e.kind === "lamp" ? new V3(e.x, 1.45, e.z) : e.g.position.clone(); _sv.copy(wp).project(camera); if (_sv.z > 1) continue; const sx = (_sv.x + 1) / 2 * innerWidth, sy = (1 - _sv.y) / 2 * innerHeight;
+      if (e.kind === "lamp" && cl.kind === "circle" && Math.hypot(cl.cx - sx, cl.cy - sy) < Math.max(80, cl.r * 1.2)) { finish(e); return; }
+      if (e.kind === "moth" && st.pts.filter((p) => Math.hypot(p[0] - sx, p[1] - sy) < 55).length >= 2) { finish(e); return; } }
+    let m = null;
+    if (cl.kind === "dot") { const g = groundAt(cl.cx, cl.cy); m = g ? { k: "plum", x: g.x, z: g.z } : (() => { const s = skyAt(cl.cx, cl.cy); return { k: "lantern", x: s.x, y: Math.max(8, s.y), z: s.z }; })(); }
+    else if (cl.kind === "circle") { const g = groundAt(cl.cx, cl.cy); if (g) m = { k: "lotus", x: g.x, z: g.z }; else { const s = skyAt(cl.cx, cl.cy); m = { k: "cloud", x: s.x, y: Math.max(14, s.y), z: s.z }; } }
+    else if (cl.kind === "vert") { const g = groundAt(cl.bottom[0], cl.bottom[1]); if (g) m = { k: "shoot", x: g.x, z: g.z }; else { const s = skyAt(cl.cx, cl.cy); m = { k: "cloud", x: s.x, y: Math.max(14, s.y), z: s.z }; } }
+    else if (cl.kind === "horiz") { const a = groundAt(cl.a[0], cl.a[1]), b = groundAt(cl.b[0], cl.b[1]); if (a && b) m = { k: "reed", x: a.x, z: a.z, x2: b.x, z2: b.z }; else { const s = skyAt(cl.cx, cl.cy); m = { k: "geese", x: s.x, y: Math.max(12, s.y), z: s.z }; } }
+    else { const gp = cl.pts.map((p) => groundAt(p[0], p[1])).filter(Boolean); if (gp.length >= 3) m = { k: "path", x: gp[0].x, z: gp[0].z, pts: gp.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)]) }; else { const s = skyAt(cl.cx, cl.cy); m = { k: "cloud", x: s.x, y: Math.max(14, s.y), z: s.z }; } }
+    for (const key of ["x", "y", "z", "x2", "z2"]) if (m[key] != null) m[key] = +m[key].toFixed(2);
+    const r = FS && FS.paintMark ? FS.paintMark(m) : { ok: true, left: 9, id: "M" + Date.now() };
+    if (!r || !r.ok) { toast(L("今天的墨用完了。做一件小事、記一筆帳，墨就會多一點。", "You're out of ink for today. Do a little task or record something, and you'll get a bit more."), 4200); return; }
+    m.id = r.id; const it = buildMark(m, true); const c = it.g.position.clone(); if (m.k === "reed" || m.k === "path") c.set(m.x, 0.3, m.z); blotAt(c, 2.4); audio.dab(); audio.stroke();
+    toast(L(`畫成了${MARK_NAME[m.k][0]}　（今天還能畫 ${r.left} 筆）`, `It became ${MARK_NAME[m.k][1]}  (${r.left} strokes left today)`), 3200); album.grant("m:" + m.k); checkAll(); showGrowth(); bar(); }
+
+  /* ---------- 畫中人：畫裡湊齊某些景，就有人走進來；跟他說話，他送你一句詩 ---------- */
+  const folkIn = {};   /* id → { p, x, z, mk } */
+  function counts() { const el = new Set(strokes.map((s) => strokeOf(s.id).k)), mk = {}; for (const q of marks) mk[q.m.k] = (mk[q.m.k] || 0) + 1; return { el, mk }; }
+  function wantPeople() { const { el, mk } = counts(), out = [];
+    if ((el.has("bamboo") && el.has("pav")) || (el.has("bamboo") && (mk.shoot || 0) >= 3)) out.push("scholar");
+    if (el.has("boat") || ((mk.lotus || 0) >= 1 && (mk.reed || 0) >= 1)) out.push("fisher");
+    if (el.has("plum") || (mk.plum || 0) >= 5 || (WX === "snow" && (mk.plum || 0) >= 1)) out.push("plum");
+    if (el.has("kite") || ((mk.geese || 0) >= 1 && (mk.path || 0) >= 1)) out.push("kite"); return out; }
+  const NEAR = { scholar: ["bamboo", "pav"], fisher: ["boat"], plum: ["plum"], kite: ["kite"] };
+  function placePeople() { const met = (album.state().met) || {};
+    for (const id of wantPeople()) { if (folkIn[id]) continue; const anchor = strokes.find((s) => NEAR[id].includes(strokeOf(s.id).k)); let x = anchor ? anchor.x + 2.8 : -3 + Object.keys(folkIn).length * 2, z = anchor ? anchor.z + 1.5 : 10;
+      if (!walkable(x, z)) { x = anchor ? anchor.x - 2.8 : x; } const p = makePerson(THREE, { top: { scholar: "#e8e2d4", fisher: "#5a5a52", plum: "#b8a8a0", kite: "#d8c8a8" }[id], bottom: "#2a2826", longHair: id === "plum", hair: "#1d1a18", skin: "#e8d8c4" }, rnd);
+      p.position.set(x, 0, z); p.rotation.y = Math.atan2(-x, -z); scene.add(p); const mk = spr(sealDot, "#ffffff", 0.7, met[id] ? 0 : 0.95, { depthTest: false }); mk.position.y = 2.3; mk.renderOrder = 11; p.add(mk);
+      proxy(1.2, "person", id, p, 1); obstacles.push({ x, z, r: 0.6, h: 2 }); folkIn[id] = { p, x, z, mk, ph: rnd() * 6, face: 0 };
+      if (!met[id]) setTimeout(() => toast(L(`畫裡好像有人走進來了……`, `Someone seems to have walked into the painting…`), 3600), 1200); } }
+  const sealDot = canvasTex(64, 64, (c) => { c.fillStyle = CINNABAR; c.fillRect(8, 8, 48, 48); c.fillStyle = "#f4ede0"; c.font = "bold 34px serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("人", 32, 35); });
+  function meet(id) { const F = folkIn[id], I = PEOPLE[id]; F.face = 3; audio.voice(3); say(L(I.say[0], I.say[1]), L(I.name[0], I.name[1]), 5200);
+    setTimeout(() => { say(L(`「${I.line[0]}」`, `"${I.line[1]}"`), L(`${I.name[0]}送你的一句`, `a line from ${I.name[1]}`), 7000); if (FS && FS.paintMet && FS.paintMet(id)) { F.mk.material.opacity = 0; album.grant("p:" + id);
+        const met = album.state().met || {}; if (POEM_ORDER.every((k) => met[k])) setTimeout(() => { album.grant("poem"); audio.fix(); album.open("poem"); }, 3800); } }, 4800); }
+  /* 每次多了東西就看一下：組合的印、筆數的印、該不該有人走進來 */
+  function checkAll() { const { el, mk } = counts(), n = strokes.length + marks.length, dense = strokes.filter((s) => strokeOf(s.id).d === 3).length, light = strokes.filter((s) => strokeOf(s.id).d === 1).length;
+    if (el.has("boat") && el.has("lamp")) album.grant("c:night"); if (el.has("bamboo") && el.has("pav")) album.grant("c:study"); if (WX === "snow" && (el.has("plum") || mk.plum)) album.grant("c:snowplum"); if (el.has("crane") && el.has("pagoda")) album.grant("c:cloudcrane");
+    if (n >= 10) album.grant("n:10"); if (n >= 30) album.grant("n:30"); if (dense >= 3) album.grant("d:dark"); if (light >= 3) album.grant("d:light"); placePeople(); }
+
+  /* ---------- 長卷：每個禮拜第一次來，自動拍一段整座城 ---------- */
+  const weekOf = (d) => { const t = new Date(d + "T12:00:00"), day = (t.getDay() + 6) % 7; t.setDate(t.getDate() - day + 3); const y = t.getFullYear(), f = new Date(y, 0, 4); return `${y}-W${String(1 + Math.round(((t - f) / 864e5 - 3 + ((f.getDay() + 6) % 7)) / 7)).padStart(2, "0")}`; };
+  function scrollCheck() { if (!FS || !FS.paintScroll) return; const wk = weekOf(DAY); if ((album.state().scrolls || []).some((x) => x.wk === wk)) return;
+    try { const oldP = camera.position.clone(), oldQ = camera.quaternion.clone(), oldA = camera.aspect, oldF = camera.fov, W = 720, H = 240, rt = new THREE.WebGLRenderTarget(W * 2, H * 2, { colorSpace: THREE.SRGBColorSpace });
+      camera.position.set(0, 26, 50); camera.lookAt(0, 3, -6); camera.aspect = 3; camera.fov = 40; camera.updateProjectionMatrix(); const nm = nameTag.visible; nameTag.visible = false; renderer.setRenderTarget(rt); renderer.render(scene, camera);
+      const px = new Uint8Array(W * 2 * H * 2 * 4); renderer.readRenderTargetPixels(rt, 0, 0, W * 2, H * 2, px); renderer.setRenderTarget(null); rt.dispose(); nameTag.visible = nm; camera.position.copy(oldP); camera.quaternion.copy(oldQ); camera.aspect = oldA; camera.fov = oldF; camera.updateProjectionMatrix();
+      const src = document.createElement("canvas"); src.width = W * 2; src.height = H * 2; const sc = src.getContext("2d"), id2 = sc.createImageData(W * 2, H * 2); for (let y = 0; y < H * 2; y++) id2.data.set(px.subarray((H * 2 - 1 - y) * W * 8, (H * 2 - y) * W * 8), y * W * 8); sc.putImageData(id2, 0, 0);
+      const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const c = cv.getContext("2d"); c.drawImage(src, 0, 0, W, H); c.fillStyle = CINNABAR; c.fillRect(W - 44, H - 44, 28, 28); c.fillStyle = "#f4ede0"; c.font = "bold 16px serif"; c.textAlign = "center"; c.fillText("卷", W - 30, H - 25);
+      if (FS.paintScroll(wk, cv.toDataURL("image/jpeg", 0.72))) toast(L("這個禮拜的長卷，收進印譜了。", "This week's scroll is in your album."), 3200); } catch (e) { console.warn(e); } }
+
+  /* ---------- 下面那一條：起好的稿、描到幾成、今天還能畫幾筆 ---------- */
+  const barEl = document.createElement("div"); barEl.className = "inkbar"; barEl.addEventListener("pointerdown", (e) => e.stopPropagation()); barEl.addEventListener("pointerup", (e) => e.stopPropagation()); document.body.append(barEl);
+  function bar() { const left = FS && FS.paintState ? Math.max(0, FS.paintAllow() - FS.paintState().used) : 0;
+    if (mode === "trace" && sketch) { barEl.innerHTML = `<p>${L("沿著淡淡的稿線刷過去", "Brush along the faint sketch lines")}<b>${Math.round(sketch.k * 100)}%</b></p><div class="ib-bar"><i></i></div><button class="btn" data-a="down" type="button">${L("先放下筆", "Put the brush down")}</button>`; barEl.querySelector(".ib-bar i").style.width = Math.round(sketch.k / 0.8 * 100) + "%"; }
+    else if (mode === "free") barEl.innerHTML = `<p>${L(`隨手畫：點一下、畫個圈、一橫、一豎、一道彎……畫在地上或天上都不一樣。今天還能畫 <b>${left}</b> 筆。`, `Draw freely — a dot, a circle, a line across or down, a curve… ground and sky give different things. <b>${left}</b> strokes left today.`)}</p><button class="btn" data-a="down" type="button">${L("放下筆", "Put the brush down")}</button>`;
+    else if (sketch) barEl.innerHTML = `<p><small>${why}</small>${L(`畫師起好了稿：「${STROKE[sketch.base].name[0]}」。這一筆，你來描。`, `The painter has sketched "${STROKE[sketch.base].name[1]}". This stroke is yours to ink.`)}</p><button class="btn primary" data-a="trace" type="button">${L("拿起筆", "Pick up the brush")}</button>`;
+    else barEl.innerHTML = "";
+    barEl.classList.toggle("on", !!barEl.innerHTML); const b1 = barEl.querySelector('[data-a="trace"]'), b2 = barEl.querySelector('[data-a="down"]');
+    if (b1) b1.onclick = () => { setMode("trace"); }; if (b2) b2.onclick = () => setMode(null);
+    if (penBtn) penBtn.textContent = L(`筆 ${left}`, `Brush ${left}`); }
+  let penBtn = null;
+  { const hud = $(".hud"), snd = $("#snd"), mk = (txt, title, fn, cls) => { const b = document.createElement("button"); b.className = "btn snd " + cls; b.type = "button"; b.textContent = txt; b.title = title; b.onclick = (e) => { e.stopPropagation(); fn(); }; hud.insertBefore(b, snd); return b; };
+    penBtn = mk(L("筆", "Brush"), L("拿起筆隨手畫", "Pick up the brush"), () => setMode(mode === "free" ? null : "free"), "pen"); mk("印", L("印譜・題詩・長卷", "Seals · poem · scrolls"), () => album.open(), "seal"); }
+  function setMode(m) { mode = m; brush.set(!!m); document.body.classList.toggle("brushing", !!m);
+    if (m === "trace" && sketch) { cam.yaw = Math.atan2(P.x - sketch.x, P.z - sketch.z); cam.want = Math.min(Math.max(cam.want, 15), 20); cam.pitch = 0.3; }
+    if (penBtn) penBtn.classList.toggle("on", m === "free"); bar(); }
+  const brush = createBrush({ onMove: (x, y, sp) => { if (mode === "trace") traceAt(x, y, sp); }, onStroke: (st) => { if (mode === "free") freeStroke(st); else if (mode === "trace" && sketch && !sketch.done) toast(L(`描了 ${Math.round(sketch.k * 100)}%，繼續沿著稿線刷。`, `${Math.round(sketch.k * 100)}% inked — keep brushing along the lines.`), 1600); } });
+  const showGrowth = () => { const n = strokes.length + marks.length, c = $("#clock"); c.textContent = L(`${n} 筆・${WXN[WX][0]}`, `${n} strokes · ${WXN[WX][1]}`); c.title = L(`這幅畫已經有 ${n} 筆`, `${n} strokes in the painting`); };
+  /* 進城：今天的天氣、月亮、朱印；有沒有起好的稿；每週的長卷 */
+  function arrive() { if (cut) return; let g = { state: null, offer: null, top: null }; if (FS) g = growStart({ city: CITY, map: pick, rnd });
+    placeSeals(g.state && g.state.visits); if (g.state) { moon.material.map = moonT(g.state.night); moon.material.needsUpdate = true; }
+    if (WX !== "clear") setTimeout(() => album.grant("w:" + WX), 2500);
+    why = g.top ? L(WHY[g.top][0], WHY[g.top][1]) : L("硯台很安靜，今天這一筆是風送來的。", "The inkstone is quiet; today's stroke came on the wind.");
+    if (g.offer && g.offer[0]) { sketch = makeSketch(strokeOf(g.offer[0]).k); if (sketch) { cam.yaw = Math.atan2(P.x - sketch.x, P.z - sketch.z); cam.want = 18; cam.pitch = 0.32; } }
+    checkAll(); bar(); showGrowth(); setTimeout(scrollCheck, 6000); }
 
   /* ---------- 紙紋：整個畫面蓋一層紙的纖維 ---------- */
   { const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c = cv.getContext("2d"), r = rngOf(77); c.fillStyle = "#808080"; c.fillRect(0, 0, 256, 256); for (let k = 0; k < 9000; k++) { const v = 110 + r() * 40; c.fillStyle = `rgba(${v},${v},${v},.5)`; c.fillRect(r() * 256, r() * 256, 1 + r() * 2, 1); }
@@ -402,20 +533,21 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     const ov = document.createElement("div"); ov.className = "paper"; ov.style.backgroundImage = `url(${cv.toDataURL()})`; document.body.append(ov); const vg = document.createElement("div"); vg.className = "vig"; document.body.append(vg); }
 
   /* ---------- 操作：點地面走、拖曳轉視角、滾輪／雙指縮放 ---------- */
-  const ray = new THREE.Raycaster(), ptr = new Map(), _h = new V3(), _sp = new V3(), _nd = new THREE.Vector2(), groundPl = new THREE.Plane(new V3(0, 1, 0), 0); let drag = null, pinch = 0;
+  let drag = null, pinch = 0; const ptr = new Map(), _sp = new V3();
   const el = renderer.domElement;
   function groundHit() { return ray.ray.intersectPlane(groundPl, _h) ? _h.clone() : null; }
   function nearPick(cx0, cy0) { let best = null, bd = Math.max(42, Math.min(innerWidth, innerHeight) * 0.09);
     for (const m of pickables) { if (!m.parent || m.parent.visible === false) continue; const u = m.userData; if (u.kind === "fix") continue; m.getWorldPosition(_sp); if (_sp.distanceTo(camera.position) > 45) continue; _sp.project(camera); if (_sp.z > 1) continue;
       const d = Math.hypot((_sp.x + 1) / 2 * innerWidth - cx0, (1 - _sp.y) / 2 * innerHeight - cy0); if (d < bd) { bd = d; best = m; } } return best; }
-  function tap(cx0, cy0) { if (cut || growUI) return; _nd.set(cx0 / innerWidth * 2 - 1, -(cy0 / innerHeight) * 2 + 1); ray.setFromCamera(_nd, camera); const gh = groundHit(), gd = gh ? gh.distanceTo(camera.position) : Infinity;
+  function tap(cx0, cy0) { if (cut || mode) return; _nd.set(cx0 / innerWidth * 2 - 1, -(cy0 / innerHeight) * 2 + 1); ray.setFromCamera(_nd, camera); const gh = groundHit(), gd = gh ? gh.distanceTo(camera.position) : Infinity;
     const hit = ray.intersectObjects(pickables, false).find((h) => h.object.parent && h.object.parent.visible !== false && h.distance < gd + 2); const obj = hit ? hit.object : nearPick(cx0, cy0);
     if (obj) { const u = obj.userData;
       if (u.kind === "fix") { fixTap(u.ref); return; }
       if (u.kind === "cx") { if (cx.tap(u.ref, [P.x, P.z]) === "far") { const p = cx.pos(u.ref); goNear(p.x, p.z, 1.4); } return; }
       if (u.kind === "mg") { if (mg.tap(u.ref, [P.x, P.z]) === "far") { const p = mg.pos(u.ref); goNear(p.x, p.z, 1.6); } return; }
       if (u.kind === "folk") { const f = folks[u.ref]; if (Math.hypot(P.x - f.x, P.z - f.z) < 9) { talk(f, performance.now() / 1000); return; } goNear(f.x, f.z, 1.6); return; }
-      if (u.kind === "ev") { const e = evs[u.ref]; if (e.state !== "wait") return; if (e.kind === "lamp") { if (Math.hypot(P.x - e.x, P.z - e.z) < 3.5) { finish(e); return; } goNear(e.x, e.z, 1.8); return; } goNear(e.x, e.z, 0); return; } }
+      if (u.kind === "ev") { const e = evs[u.ref]; if (e.state !== "wait") return; setMode("free"); toast(e.kind === "lamp" ? L("拿起筆了：在石燈上畫一個圈，它就會亮。", "Brush in hand: draw a circle around the stone lantern to light it.") : L("拿起筆了：沿著墨蝶飛的路描一筆。", "Brush in hand: trace a stroke along the ink butterfly's path."), 4200); return; }
+      if (u.kind === "person") { const F = folkIn[u.ref]; if (Math.hypot(P.x - F.x, P.z - F.z) < 9) { const met = album.state().met || {}; if (met[u.ref]) { const I = PEOPLE[u.ref]; say(L(`「${I.line[0]}」`, `"${I.line[1]}"`), L(I.name[0], I.name[1]), 5000); F.face = 3; } else meet(u.ref); return; } goNear(F.x, F.z, 1.6); return; } }
     if (!gh || !walkable(gh.x, gh.z)) { if (gh && !bridgeOn && gh.x > streamX(gh.z) - 2.5 && Math.hypot(gh.x, gh.z) < LAND) toast(L("石拱橋的墨淡了，過不去。", "The stone bridge has faded — you can't cross yet.")); return; }
     fixGo = null; P.stuck = 0; P.tx = gh.x; P.tz = gh.z; markAt(gh.x, gh.z); }
   function goNear(x, z, off) { const dx = P.x - x, dz = P.z - z, d = Math.hypot(dx, dz) || 1; let tx = x + dx / d * off, tz = z + dz / d * off; if (!walkable(tx, tz)) { tx = x; tz = z; } if (!walkable(tx, tz)) return;
@@ -434,7 +566,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
 
   /* ---------- 過場：穿過星門，從霧的上方慢慢落進畫裡 ---------- */
   const _ca = new V3(), _cb = new V3(), CUT_FROM = new V3(-40, 90, -160);
-  function endCut() { if (!cut) return; cut = null; camera.fov = normalFov(); camera.updateProjectionMatrix(); $("#gate").hidden = true; document.body.classList.remove("cutting"); const h = $("#hint"); h.classList.remove("off"); setTimeout(() => h.classList.add("off"), 12000); setTimeout(offerNow, 1200); }
+  function endCut() { if (!cut) return; cut = null; camera.fov = normalFov(); camera.updateProjectionMatrix(); $("#gate").hidden = true; document.body.classList.remove("cutting"); const h = $("#hint"); h.classList.remove("off"); setTimeout(() => h.classList.add("off"), 12000); setTimeout(arrive, 1200); }
   function runCut(dt, fpos, flook) { cut.t += dt; const T = cut.t;
     if (cut.ph === "wait") { const a = T * 0.04 + 0.6; camera.position.set(Math.cos(a) * 90, 40 + Math.sin(T * 0.07) * 5, Math.sin(a) * 90); camera.lookAt(0, 4, 0); return; }
     const k = ease(T / 5.5); _ca.copy(CUT_FROM).lerp(fpos, k); _ca.y += Math.sin(k * Math.PI) * 10; camera.position.copy(_ca); _cb.set(-260, 150, -620).lerp(flook, k); camera.lookAt(_cb); if (T >= 5.5) endCut(); }
@@ -442,18 +574,21 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     $("#gGo").textContent = L("🌀 穿過星門", "🌀 Through the star gate"); $("#gSub").textContent = L("訊號從一幅沒畫完的畫裡傳來。", "The signal comes from inside an unfinished painting."); $("#gTitle").textContent = L("留白城", "LIUBAI"); $("#gSkip").textContent = L("略過 ›", "Skip ›");
     $("#gGo").onclick = (e) => { e.stopPropagation(); audio.gesture(); audio.fall(); cut.ph = "run"; cut.t = 0; $("#gate").classList.add("running"); };
     $("#gSkip").onclick = (e) => { e.stopPropagation(); audio.gesture(); endCut(); }; }
-  else setTimeout(offerNow, 900);
+  else setTimeout(arrive, 900);
   addEventListener("resize", resize); resize();
 
-  $("#place").textContent = L("留白城", "Liubai"); showGrowth();
-  $("#hint").textContent = L("點地面走過去 · 拖曳轉視角 · 每天可以替這幅畫添一筆 · 朱紅的「修」是壞掉的地方", "Tap the ground to walk · drag to turn · add one stroke to the painting each day · the red 修 seal marks something broken");
+  if (FS && FS.paintState) FS.paintState().marks.forEach((m) => buildMark(m, false));
+  $("#place").textContent = L("留白城", "Liubai"); showGrowth(); bar();
+  $("#hint").textContent = L("點地面走過去 · 拖曳轉視角 · 右上角「筆」可以在畫裡隨手畫 · 「印」是你收集的印譜 · 朱紅的「修」是壞掉的地方", "Tap the ground to walk · drag to turn · \"Brush\" (top right) lets you draw into the painting · 印 is your seal album · the red 修 marks something broken");
   if (!cut) setTimeout(() => $("#hint").classList.add("off"), 14000);
   window.__sleSnap = () => { try { renderer.render(scene, camera); const c = renderer.domElement; return { url: c.toDataURL("image/jpeg", 0.9), w: c.width, h: c.height, place: $("#place") ? $("#place").textContent : "" }; } catch (e) { return null; } };
   $("#loading").remove(); sndLabel(); $("#snd").onclick = (e) => { e.stopPropagation(); audio.toggle(); sndLabel(); toast(audio.on ? L("♪ 聲音打開了", "♪ Sound on") : L("聲音關掉了", "Sound off"), 1800); };
   const perf = { n: 0, sum: 0, max: 0 };
   if (QS.has("dbg")) window.__ink = { P, cam, strokes: () => strokes.map((s) => ({ i: s.i, id: s.id, rev: !!s.rev })), ev: () => evs.map((e) => ({ i: e.i, kind: e.kind, x: +e.x.toFixed(1), z: +e.z.toFixed(1), state: e.state })),
-    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, offer: () => { offerNow(); return !!growUI; },
-    paintAll: (d = 2) => { Object.keys(STROKE).forEach((k, i) => { if (!strokes.some((s) => s.i === i)) addStroke(i, `${k}@${d}`, false); }); showGrowth(); return strokes.length; },
+    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, sketch: () => sketch && { base: sketch.base, k: +sketch.k.toFixed(2), n: sketch.pts.length, x: sketch.x, z: sketch.z }, mode: () => mode, setMode,
+    traceAll: (speed = 500) => { if (!sketch) return null; setMode("trace"); sketch.pts.forEach((p, i) => { sketch.hit[i] = true; }); sketch.speeds.push(speed); sketch.k = 1; sketchShow(1); inkDone(); return strokes.length; },
+    traceAt, free: (st) => freeStroke(st), scr: (x, y, z) => { _sv.set(x, y, z).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; }, marks: () => marks.map((q) => q.m.k), people: () => Object.keys(folkIn), meet, album, arrive, WX: () => WX, scrollCheck,
+    paintAll: (d = 2) => { Object.keys(STROKE).forEach((k, i) => { if (!strokes.some((s) => s.i === i)) addStroke(i, `${k}@${d}`, false); }); checkAll(); showGrowth(); return strokes.length; },
     fix: () => Object.values(fixSites).map((S) => ({ id: S.id, k: +S.kt.toFixed(2), done: S.done })), fixAt: (id, off = 4.4) => { const S = fixSites[id]; P.x = S.x - off; P.z = S.z; P.tx = P.tz = null; return [S.x, S.z]; }, fixTap: (id) => { fixTap(id); return fixes.isOpen; },
     poster: (id) => { makePoster(id); return 1; }, story: () => { tellStory(true); return 1; }, tap, walkable,
     perf: () => ({ avgMs: perf.n ? +(perf.sum / perf.n).toFixed(2) : 0, maxMs: +perf.max.toFixed(1), n: perf.n, calls: renderer.info.render.calls, tris: renderer.info.render.triangles }), resetPerf: () => { perf.n = perf.sum = perf.max = 0; return 1; }, cut: () => cut && cut.ph };
@@ -481,6 +616,10 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
       if (u.boat) { u.boat.position.y = 0.25 + Math.sin(t * 0.9) * 0.06; u.boat.rotation.y = Math.sin(t * 0.2) * 0.5; }
       if (u.cranes) u.cranes.forEach((q) => { q.a += q.v * dt; q.s.position.set(Math.cos(q.a) * q.rr, q.h + Math.sin(t + q.a) * 0.6, Math.sin(q.a) * q.rr); q.s.material.rotation = Math.sin(t * 3 + q.a) * 0.15; });
       if (u.kites) u.kites.forEach((q) => { const x = Math.cos(q.a + t * 0.1) * q.rr, y = q.h + Math.sin(t * 0.7 + q.a) * 0.8 + wind, z = Math.sin(q.a + t * 0.1) * q.rr; q.s.position.set(x, y, z); q.s.material.rotation = Math.sin(t * 1.3 + q.a) * 0.3; q.ln.geometry.setFromPoints([new V3(0, 1.4, 0), new V3(x, y - 0.6, z)]); }); }
+    for (const q of blots) { if (q.t < 1.4) { q.t += dt; const k = q.t / 1.4; q.b.scale.setScalar(q.s * (0.5 + k * 1.8)); q.b.material.opacity = 0.85 * (1 - k); } else if (q.b.visible) q.b.visible = false; }
+    for (const it of marks) { if (it.rev) { it.rev.t += dt; const k = ease(Math.min(1, it.rev.t / 2.2)); it.rev.mats.forEach(([m, op]) => { m.opacity = op * k; }); if (k >= 1) { it.rev.mats.forEach(([m, op]) => { m.opacity = op; }); it.rev = null; } } if (it.anim) it.anim(t); }
+    if (wxPts) { const sp = WX === "rain" ? 22 : 1.6; for (let i = 0; i < wxN; i++) { let y = wxPos[i * 3 + 1] - sp * dt; if (y < 0) { y += 34; wxPos[i * 3] = P.x + (R0() - 0.5) * 70; wxPos[i * 3 + 2] = P.z + (R0() - 0.5) * 70; } wxPos[i * 3 + 1] = y; if (WX === "snow") wxPos[i * 3] += Math.sin(t + i) * dt * 0.4; } wxPts.geometry.attributes.position.needsUpdate = true; }
+    for (const F of Object.values(folkIn)) { F.p.position.y = Math.sin(t * 1.2 + F.ph) * 0.02; if (F.mk.material.opacity > 0) F.mk.position.y = 2.3 + Math.sin(t * 2 + F.ph) * 0.12; if (F.face > 0) { F.face -= dt; const want = Math.atan2(P.x - F.x, P.z - F.z); let dy = want - F.p.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); F.p.rotation.y += dy * Math.min(1, dt * 4); } }
     for (const f of folks) { f.p.position.y = Math.sin(t * 1.3 + f.ph) * 0.02; if (f.face > 0) { f.face -= dt; const want = Math.atan2(P.x - f.x, P.z - f.z); let dy = want - f.p.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); f.p.rotation.y += dy * Math.min(1, dt * 4); } }
     for (const e of evs) {
       if (e.state === "wait") { if (e.kind === "moth") { const a = e.a0 + t * e.w; e.x = Math.cos(a) * e.r; e.z = Math.sin(a) * e.r; e.g.position.set(e.x, 1.4 + Math.sin(t * 2.3 + e.ph) * 0.5, e.z); e.m.scale.set(1.1 * (0.6 + Math.abs(Math.sin(t * 9 + e.ph)) * 0.4), 1.1, 1);
