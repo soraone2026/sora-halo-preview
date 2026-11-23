@@ -105,3 +105,10 @@ body.brushing .hint { opacity: 0; }
 .inkbar .ipu span.has { border-style: solid; color: #2a2420; background: rgba(255, 255, 255, .5); }
 .inkbar .ipu span.has i { color: #c03a2b; font-style: normal; }
 .inkbar .ipu span i { font-style: normal; }
+/* 進場：按略過一直都按得到；紙白一閃；畫卷兩端的軸 */
+.gate.running #gSkip { pointer-events: auto; }
+.flash { background: #ece4d4; }
+.cutrod { position: fixed; top: 0; bottom: 0; width: 30px; z-index: 4; pointer-events: none; background: linear-gradient(to right, #4a3220, #9a7048 45%, #5a3d24); box-shadow: 0 0 18px rgba(40, 28, 18, .45); }
+.cutrod.l { left: 0; } .cutrod.r { right: 0; }
+.cutrod::before, .cutrod::after { content: ""; position: absolute; left: -6px; right: -6px; height: 16px; border-radius: 8px; background: #3a2616; }
+.cutrod::before { top: 10px; } .cutrod::after { bottom: 10px; }

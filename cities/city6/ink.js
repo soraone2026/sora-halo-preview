@@ -621,15 +621,78 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   const normalFov = () => innerWidth / innerHeight < 0.8 ? 62 : 50;
   function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; if (!cut) camera.fov = normalFov(); camera.updateProjectionMatrix(); }
 
-  /* ---------- 過場：穿過星門，從霧的上方慢慢落進畫裡 ---------- */
-  const _ca = new V3(), _cb = new V3(), CUT_FROM = new V3(-40, 90, -160);
-  function endCut() { if (!cut) return; cut = null; camera.fov = normalFov(); camera.updateProjectionMatrix(); $("#gate").hidden = true; document.body.classList.remove("cutting"); const h = $("#hint"); h.classList.remove("off"); setTimeout(() => h.classList.add("off"), 12000); setTimeout(arrive, 1200); }
-  function runCut(dt, fpos, flook) { cut.t += dt; const T = cut.t;
-    if (cut.ph === "wait") { const a = T * 0.04 + 0.6; camera.position.set(Math.cos(a) * 90, 40 + Math.sin(T * 0.07) * 5, Math.sin(a) * 90); camera.lookAt(0, 4, 0); return; }
-    const k = ease(T / 5.5); _ca.copy(CUT_FROM).lerp(fpos, k); _ca.y += Math.sin(k * Math.PI) * 10; camera.position.copy(_ca); _cb.set(-260, 150, -620).lerp(flook, k); camera.lookAt(_cb); if (T >= 5.5) endCut(); }
+  /* ---------- 過場（熊 2026-11-23：「每次都播，但可以按略過」）----------
+   * 一、墨色的星球上浮著一卷收起來的畫（另一個小場景）。按「穿過星門」：畫卷朝你攤開、鏡頭貼上紙面，紙白一閃。
+   * 二、回到城的上空：紙上還是空的。一滴墨落下，從中間暈開；墨走過的地方，東西像立體書一樣一個個立起來。
+   * 三、遠山、日、霧最後淡進來；畫卷兩端的軸往兩邊退開，鏡頭俯衝進畫裡，接到你站的地方。 */
+  const CUT_T = { sw: 2.8, drop: 3.0, ink: 3.4, spread: 3.0, far: 5.4, dive: 6.6, end: 9.0 }, SPREAD_P = 1.4;   /* 墨先慢慢暈、越暈越快：中間的東西一個一個立起來 */
+  let sceneB = null, camB = null, scrollB = null, cutItems = null, cutFar = null, inkRing = null, inkDrop = null, rods = null;
+  function buildPlanet() { sceneB = new THREE.Scene(); sceneB.background = new THREE.Color("#ddd3c1");
+    const neb = spr(blotT, "#ffffff", 260, 0.5); neb.position.set(-60, 40, -220); sceneB.add(neb); const neb2 = spr(blotT, "#ffffff", 180, 0.35); neb2.position.set(90, -10, -200); sceneB.add(neb2);
+    { const n = 700, pos = new Float32Array(n * 3), r = rngOf(88); for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, b = Math.acos(r() * 2 - 1), d = 120 + r() * 120; pos.set([Math.sin(b) * Math.cos(a) * d, Math.cos(b) * d, Math.sin(b) * Math.sin(a) * d], i * 3); }
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); sceneB.add(new THREE.Points(g, new THREE.PointsMaterial({ color: "#2a2420", size: 1.3, sizeAttenuation: true, fog: false }))); }   /* 紙上的星：黑點 */
+    const sunB = spr(canvasTex(128, 128, (c) => { c.fillStyle = CINNABAR; c.beginPath(); c.arc(64, 64, 58, 0, 7); c.fill(); }), "#ffffff", 30, 0.95); sunB.position.set(70, 45, -120); sceneB.add(sunB);
+    const planet = outline(mesh(new THREE.SphereGeometry(26, 48, 32), 0.72), 0.03); planet.position.set(0, -36, -6); sceneB.add(planet);
+    const ringB = new THREE.Mesh(new THREE.RingGeometry(33, 46, 96), new THREE.MeshBasicMaterial({ color: "#2a2420", map: brushT, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })); ringB.position.copy(planet.position); ringB.rotation.set(-1.25, 0.2, 0.3); sceneB.add(ringB);
+    const moonB = outline(mesh(new THREE.SphereGeometry(4, 24, 16), 0.3), 0.05); moonB.position.set(-38, -6, -40); sceneB.add(moonB);
+    /* 畫卷：左軸固定，紙往右攤開，右邊是捲著的那一卷 */
+    const g = new THREE.Group(); g.scale.setScalar(2.2); sceneB.add(g); const W = 16, H = 6;
+    const pT = canvasTex(1024, 384, (c, w, h) => { c.fillStyle = "#efe7d6"; c.fillRect(0, 0, w, h); const r = rngOf(61); for (let k = 0; k < 2200; k++) { c.fillStyle = `rgba(120,100,80,${r() * 0.05})`; c.fillRect(r() * w, r() * h, 2, 1); }
+      c.strokeStyle = "rgba(90,84,76,.55)"; c.lineWidth = 2; for (const [b, a, sd] of [[190, 70, 3], [230, 50, 7]]) { const rr = rngOf(sd); c.beginPath(); let y = b; c.moveTo(0, y); for (let x = 0; x <= w; x += 32) { y = Math.max(80, Math.min(260, y + (rr() - 0.5) * a)); c.lineTo(x, y); } c.stroke(); }
+      c.lineWidth = 1.5; for (const x0 of [300, 640, 760]) { c.beginPath(); c.moveTo(x0, 330); c.lineTo(x0 + 4, 250); c.stroke(); for (let k = 0; k < 3; k++) { c.beginPath(); c.ellipse(x0 + 4, 258 - k * 18, 26 - k * 5, 6, 0, 0, 7); c.stroke(); } }
+      c.beginPath(); c.moveTo(470, 330); c.lineTo(470, 296); c.lineTo(500, 280); c.lineTo(530, 296); c.lineTo(530, 330); c.stroke(); c.beginPath(); c.moveTo(0, 340); c.quadraticCurveTo(w / 2, 320, w, 350); c.stroke();
+      c.fillStyle = CINNABAR; c.fillRect(w - 70, 30, 38, 38); c.fillStyle = "#efe7d6"; c.font = "bold 24px serif"; c.textAlign = "center"; c.fillText("白", w - 51, 58); });
+    const sg = new THREE.PlaneGeometry(W, H); sg.translate(W / 2, 0, 0); const sheet = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ map: pT, side: THREE.DoubleSide })); sheet.position.x = -W / 2; g.add(sheet);
+    const rodM = new THREE.MeshBasicMaterial({ color: "#5a3d24" }), rollM = new THREE.MeshBasicMaterial({ color: "#e8dfcc", map: brushT });
+    const rodL = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, H + 1.2, 12), rodM); rodL.position.x = -W / 2; g.add(rodL);
+    const roll = new THREE.Group(); roll.add(outline(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, H, 24), rollM), 0.04)); roll.add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, H + 1.2, 12), rodM)); g.add(roll);
+    for (const y of [H / 2 + 0.6, -H / 2 - 0.6]) for (const R of [rodL, roll]) { const k = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 8), rodM); k.position.y = y; R.add(k); }
+    scrollB = { g, sheet, roll, W, H, set(u) { sheet.scale.x = Math.max(0.001, u); roll.position.x = -W / 2 + W * u + 0.55; } }; scrollB.set(0.02);
+    camB = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 2000); }
+  /* 城裡每樣東西：高的像立體書立起來，扁的、浮著的從中間長開；遠山、日、霧最後淡進來 */
+  function prepCity() { cutItems = []; cutFar = []; const bb = new THREE.Box3(), sz = new V3(), ct = new V3();
+    for (const o of scene.children) { if (o === ground || o.isLight || o === inkRing || o === inkDrop || o === wxPts || o.isPoints) continue;
+      const mt = o.material; if (mt && mt.fog === false) { if (o.geometry && o.geometry.type === "SphereGeometry") continue; cutFar.push({ m: mt, op: mt.opacity, tr: mt.transparent }); mt.transparent = true; mt.opacity = 0; continue; }
+      if (o.isSprite && !o.visible) continue; bb.setFromObject(o); if (bb.isEmpty()) continue; bb.getSize(sz); bb.getCenter(ct); const d = Math.hypot(ct.x, ct.z); if (d > LAND + 30) continue;
+      const tall = !o.isSprite && sz.y > 0.6, x = Math.min(1, d / (LAND + 15)), ts = CUT_T.ink + CUT_T.spread * Math.pow(x, 1 / SPREAD_P);
+      cutItems.push({ o, tall, ts, s: o.scale.clone(), rx: o.rotation.x, py: o.position.y, base: bb.min.y, off: o.position.y - bb.min.y }); }
+    if (!inkRing) { inkRing = new THREE.Mesh(new THREE.PlaneGeometry(2 * (LAND + 25), 2 * (LAND + 25)), new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uR: { value: 0 }, uFade: { value: 1 }, uCol: { value: new THREE.Color("#1d1a18") } },
+        vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+        fragmentShader: "uniform float uR; uniform float uFade; uniform vec3 uCol; varying vec2 vP; void main(){ float d = length(vP); float a = atan(vP.y, vP.x); float n = sin(a*7.0+1.3)*0.9 + sin(a*13.0+4.1)*0.6 + sin(a*23.0+uR*0.3)*0.35 + sin(d*0.9)*0.4; float e = uR + n*min(1.5, 0.06*uR + 0.25); float inside = smoothstep(e+0.5, e-0.7, d); float wet = exp(-max(e-d,0.0)/1.8); float al = inside*(0.14 + 0.7*wet)*uFade; if (al < 0.003) discard; gl_FragColor = vec4(uCol, al); }" }));
+      inkRing.rotation.x = -Math.PI / 2; inkRing.position.y = 0.08; inkRing.renderOrder = 3; scene.add(inkRing);
+      inkDrop = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12), new THREE.MeshBasicMaterial({ color: "#1d1a18" })); inkDrop.scale.y = 1.5; scene.add(inkDrop); }
+    inkRing.visible = true; inkRing.material.uniforms.uR.value = 0; inkRing.material.uniforms.uFade.value = 1; inkDrop.visible = false; cutPose(0); }
+  const backOut = (k) => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+  function cutPose(T) { for (const it of cutItems) { const k = Math.max(0, Math.min(1, (T - it.ts) / 0.75)), o = it.o;
+      if (k >= 1) { o.scale.copy(it.s); o.rotation.x = it.rx; o.position.y = it.py; continue; } const b = k <= 0 ? 0.001 : Math.max(0.001, backOut(k));
+      if (it.tall) { o.scale.set(it.s.x, it.s.y * b, it.s.z); o.position.y = it.base + it.off * b; o.rotation.x = it.rx - (1 - Math.min(1, b)) * 0.5; }
+      else o.scale.copy(it.s).multiplyScalar(b); o.visible = o.visible; } }
+  function cutRestore() { if (cutItems) { for (const it of cutItems) { it.o.scale.copy(it.s); it.o.rotation.x = it.rx; it.o.position.y = it.py; } cutItems = null; }
+    if (cutFar) { for (const f of cutFar) { f.m.opacity = f.op; f.m.transparent = f.tr; } cutFar = null; } if (inkRing) inkRing.visible = false; if (inkDrop) inkDrop.visible = false;
+    if (rods) { rods.forEach((r) => r.remove()); rods = null; } const fl = $("#flash"); if (fl) fl.style.opacity = 0; }
+  const _ca = new V3(), _cb = new V3(), _cc = new V3();
+  function endCut() { if (!cut) return; cut = null; cutRestore(); camera.fov = normalFov(); camera.updateProjectionMatrix(); $("#gate").hidden = true; document.body.classList.remove("cutting"); const h = $("#hint"); h.classList.remove("off"); setTimeout(() => h.classList.add("off"), 12000); setTimeout(arrive, 900); }
+  function runCut(dt, fpos, flook) { cut.t += dt; const T = cut.t, fl = $("#flash");
+    if (cut.ph === "wait" || T < CUT_T.sw) { cut.alt = true; camB.aspect = innerWidth / innerHeight; camB.updateProjectionMatrix(); scrollB.g.position.y = Math.sin(performance.now() / 1300) * 0.25;
+      const fv = camB.fov * Math.PI / 360, fh = Math.atan(Math.tan(fv) * camB.aspect), near = 0.92 * 2.2 * Math.min(scrollB.H / 2 / Math.tan(fv), scrollB.W / 2 / Math.tan(fh));
+      if (cut.ph === "wait") { const a = T * 0.08 - 0.4, R = camB.aspect < 0.8 ? 62 : 46; camB.position.set(Math.sin(a) * R, 8 + Math.sin(T * 0.2) * 2, Math.cos(a) * R); camB.lookAt(0, camB.aspect < 0.8 ? -14 : -4, 0); cut.from = camB.position.clone(); return; }
+      const k1 = ease(Math.min(1, T / 1.2)), k3 = ease(Math.max(0, (T - 1.9) / 0.8)); _ca.copy(cut.from).lerp(_cc.set(0, 0.8, camB.aspect < 0.8 ? 60 : 40), k1).lerp(_cc.set(0, 0, near), k3); camB.position.copy(_ca); _cb.set(0, -6 * (1 - k1), 0); camB.lookAt(_cb);
+      scrollB.set(Math.max(0.02, ease(Math.max(0, Math.min(1, (T - 0.6) / 1.4))))); if (fl) fl.style.opacity = Math.max(0, Math.min(1, (T - 2.35) / 0.45)); return; }
+    if (cut.alt) { cut.alt = false; if (!cutItems) prepCity(); if (!rods) rods = ["l", "r"].map((sd) => { const d = document.createElement("div"); d.className = "cutrod " + sd; document.body.append(d); return d; }); }
+    const H0 = camera.aspect < 0.8 ? [0, 42, 50] : [0, 30, 40]; if (fl) fl.style.opacity = Math.max(0, 1 - (T - CUT_T.sw) / 0.5);
+    /* 一滴墨落下，暈開 */
+    const kd = (T - CUT_T.drop) / (CUT_T.ink - CUT_T.drop); inkDrop.visible = kd > 0 && kd < 1; if (inkDrop.visible) inkDrop.position.set(0, 34 * (1 - kd * kd), 0);
+    if (T >= CUT_T.ink && !cut.dropped) { cut.dropped = true; audio.stroke(); blotAt(new V3(0, 0.3, 0), 6); }
+    const ks = Math.max(0, Math.min(1, (T - CUT_T.ink) / CUT_T.spread)); inkRing.material.uniforms.uR.value = (LAND + 15) * Math.pow(ks, SPREAD_P); inkRing.material.uniforms.uFade.value = 1 - Math.max(0, Math.min(1, (T - (CUT_T.dive - 0.2)) / 0.9));
+    cutPose(T); if (cutItems.some((it) => T > it.ts && T - dt <= it.ts && it.tall)) audio.dab();
+    const kf = Math.max(0, Math.min(1, (T - CUT_T.far) / 1.4)); for (const f of cutFar) f.m.opacity = f.op * kf;
+    /* 畫卷兩端的軸往兩邊退開；鏡頭俯衝進畫裡 */
+    const kr = ease(Math.max(0, Math.min(1, (T - CUT_T.dive) / 1.1))); if (rods) { rods[0].style.transform = `translateX(${-kr * 60}vw)`; rods[1].style.transform = `translateX(${kr * 60}vw)`; rods.forEach((r) => { r.style.opacity = 1 - kr; }); }
+    const kv = ease(Math.max(0, Math.min(1, (T - CUT_T.dive) / (CUT_T.end - CUT_T.dive)))); _ca.set(...H0).lerp(fpos, kv); _ca.y += Math.sin(kv * Math.PI) * 4; camera.position.copy(_ca); _cb.set(0, 0, -6).lerp(flook, kv); camera.lookAt(_cb);
+    if (T >= CUT_T.end) endCut(); }
   if (cut) { $("#gate").hidden = false; document.body.classList.add("cutting"); $("#hint").classList.add("off");
     $("#gGo").textContent = L("🌀 穿過星門", "🌀 Through the star gate"); $("#gSub").textContent = L("訊號從一幅沒畫完的畫裡傳來。", "The signal comes from inside an unfinished painting."); $("#gTitle").textContent = L("留白城", "LIUBAI"); $("#gSkip").textContent = L("略過 ›", "Skip ›");
-    $("#gGo").onclick = (e) => { e.stopPropagation(); audio.gesture(); audio.fall(); cut.ph = "run"; cut.t = 0; $("#gate").classList.add("running"); };
+    buildPlanet(); $("#gGo").onclick = (e) => { e.stopPropagation(); audio.gesture(); audio.fall(); cut.ph = "run"; cut.t = 0; $("#gate").classList.add("running"); };
     $("#gSkip").onclick = (e) => { e.stopPropagation(); audio.gesture(); endCut(); }; }
   else setTimeout(arrive, 900);
   addEventListener("resize", resize); resize();
@@ -642,7 +705,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
   $("#loading").remove(); sndLabel(); $("#snd").onclick = (e) => { e.stopPropagation(); audio.toggle(); sndLabel(); toast(audio.on ? L("♪ 聲音打開了", "♪ Sound on") : L("聲音關掉了", "Sound off"), 1800); };
   const perf = { n: 0, sum: 0, max: 0 };
   if (QS.has("dbg")) window.__ink = { P, cam, strokes: () => strokes.map((s) => ({ i: s.i, id: s.id, rev: !!s.rev })), ev: () => evs.map((e) => ({ i: e.i, kind: e.kind, x: +e.x.toFixed(1), z: +e.z.toFixed(1), state: e.state })),
-    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, sketch: () => sketch && { base: sketch.base, k: +sketch.k.toFixed(2), n: sketch.pts.length, lines: sketch.lines.length, x: sketch.x, z: sketch.z, cy: +sketch.c.y.toFixed(2), r: +sketch.r.toFixed(2) }, focus: () => focus, guideScr: () => sketch ? sketch.lines.map((L2) => L2.map((i) => { _sv.copy(sketch.pts[i]).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; })) : null, mode: () => mode, setMode,
+    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, cutT: () => cut && { ph: cut.ph, t: +cut.t.toFixed(2), alt: !!cut.alt, n: cutItems ? cutItems.length : -1 }, cutSet: (t) => { if (cut) { cut.ph = "run"; cut.t = t; } return !!cut; }, sketch: () => sketch && { base: sketch.base, k: +sketch.k.toFixed(2), n: sketch.pts.length, lines: sketch.lines.length, x: sketch.x, z: sketch.z, cy: +sketch.c.y.toFixed(2), r: +sketch.r.toFixed(2) }, focus: () => focus, guideScr: () => sketch ? sketch.lines.map((L2) => L2.map((i) => { _sv.copy(sketch.pts[i]).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; })) : null, mode: () => mode, setMode,
     traceAll: (speed = 500) => { if (!sketch) return null; setMode("trace"); sketch.hit = sketch.pts.map(() => true); sketch.speeds.push(speed); sketch.k = 1; sketchShow(1); inkDone(); return strokes.length; },
     traceAt, free: (st) => freeStroke(st), scr: (x, y, z) => { _sv.set(x, y, z).project(camera); return [Math.round((_sv.x + 1) / 2 * innerWidth), Math.round((1 - _sv.y) / 2 * innerHeight)]; }, marks: () => marks.map((q) => q.m.k), people: () => Object.keys(folkIn), meet, album, arrive, WX: () => WX, scrollCheck,
     paintAll: (d = 2) => { Object.keys(STROKE).forEach((k, i) => { if (!strokes.some((s) => s.i === i)) addStroke(i, `${k}@${d}`, false); }); checkAll(); showGrowth(); return strokes.length; },
@@ -696,7 +759,7 @@ const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人
     if (_p.y < 0.6) _p.y = 0.6;
     _look.copy(base); _look.y += lift * 3.2 * D;
     if (cut) runCut(raw, _p, _look); else { camera.position.copy(_p); camera.lookAt(_look); }
-    renderer.render(scene, camera);
+    if (cut && cut.alt && sceneB) renderer.render(sceneB, camB); else renderer.render(scene, camera);
     const ms = performance.now() - f0; if (!cut) { perf.n++; perf.sum += ms; if (ms > perf.max) perf.max = ms; } }
   requestAnimationFrame(frame);
 })();
