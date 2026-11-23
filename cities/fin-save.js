@@ -178,7 +178,7 @@
     growVisit: function (city, hour, offer) { var s = read(); if (!s) return null; var d = today(), R = s.grow = s.grow || {}, G = R[city] = R[city] || { steps: 0, slots: [], lv: {} };
       if (G.last === d) return this.growState(city); G.last = d; G.visits = (G.visits || 0) + 1; if (hour >= 18 || hour < 6) G.night = (G.night || 0) + 1;
       if (!G.pend && offer && offer.length >= 1) G.pend = { d: d, o: offer.slice(0, 2) }; write(s); return this.growState(city); },
-    growChoose: function (city, type, max, store) { var s = read(); if (!s) return null; var G = s.grow && s.grow[city]; if (!G || !G.pend || G.pend.o.indexOf(type) < 0) return null;   /* store：實際存進去的樣子（例如留白城：描稿描出來的濃淡「bamboo@3」） */
+    growChoose: function (city, type, max, store) { var s = read(); if (!s) return null; var G = s.grow && s.grow[city]; if (!G || !G.pend || !G.pend.o.some(function (x) { return x === type || String(x).split("@")[0] === type; })) return null;   /* 舊版存的是「plum@3」也認得；store：實際存進去的樣子（例如留白城：描稿描出來的濃淡「bamboo@3」） */
       var slot = -1; if ((G.slots || []).length < (max || 12)) { G.slots = G.slots || []; G.slots.push(store || type); slot = G.slots.length - 1; } else { G.lv = G.lv || {}; G.lv[type] = Math.min(3, (G.lv[type] || 0) + 1); }
       G.steps = (G.steps || 0) + 1; G.pend = null; write(s); return { slot: slot, state: this.growState(city) }; },
     growStory: function (city) { var s = read(); if (!s) return false; var G = (s.grow = s.grow || {})[city] = (s.grow[city] || { steps: 0, slots: [], lv: {} }); if (G.story) return false; G.story = today(); write(s); return true; },
