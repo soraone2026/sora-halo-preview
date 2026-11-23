@@ -112,3 +112,13 @@ body.brushing .hint { opacity: 0; }
 .cutrod.l { left: 0; } .cutrod.r { right: 0; }
 .cutrod::before, .cutrod::after { content: ""; position: absolute; left: -6px; right: -6px; height: 16px; border-radius: 8px; background: #3a2616; }
 .cutrod::before { top: 10px; } .cutrod::after { bottom: 10px; }
+/* 墨色：色票、印譜裡的解鎖門檻 */
+.inkbar .ichips { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: 2px 0 8px; }
+.inkbar .ichips button, .inkbar .ichips span { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 12px; padding: 3px 8px 3px 4px; border-radius: 999px; border: 1px solid rgba(58, 50, 44, .3); background: rgba(255, 255, 255, .45); color: #2a2420; cursor: pointer; }
+.inkbar .ichips button.on { border: 2px solid #1d1a18; background: #fff; font-weight: 700; }
+.inkbar .ichips span.lock { opacity: .5; cursor: default; border-style: dashed; }
+.inkbar .ichips i, .albumov .ainks i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .2); }
+.albumov .ainks { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.albumov .ainks span { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px dashed rgba(58, 50, 44, .35); color: #7a7068; }
+.albumov .ainks span.has { border-style: solid; color: #2a2420; background: rgba(255, 255, 255, .6); }
+.albumov .ainks small { font-size: 11px; color: #9a8a7a; }
