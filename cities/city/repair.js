@@ -3,7 +3,7 @@
  * 配方和存檔都在 /fin-save.js（FinSave.fixState / fixPut）；這裡只管畫面。城市自己決定壞掉、修到一半、修好的樣子（onUpdate）。
  */
 const MAT = { lux: ["曦晶", "Halo crystal", "◆", "曦環城裡拿得到", "found in Xi Halo"], sand: ["時砂", "Time sand", "⧗", "凝瞬城裡拿得到", "found in Stillmoment"], pearl: ["潮珠", "Tide pearl", "◉", "潮光港裡拿得到", "found in Tidelight Harbor"], moss: ["苔光", "Mossglow", "❦", "螢苔林裡拿得到", "found in Glowmoss Grove"],
-  glim: ["燈芯", "Lantern wick", "✦", "浮燈渡裡拿得到", "found in Lanternferry"],
+  ink: ["松煙墨", "Pine-soot ink", "墨", "留白城裡拿得到", "found in Liubai"],
   ess: ["元液", "Essence", "💧", "家裡的元液瓶", "from the essence jar at home"], gem: ["多出來的寶石", "Spare gem", "💎", "家裡重複的寶石", "a duplicate gem from home"] };
 
 export function createRepair({ city, L, toast, say, FS, info, onUpdate, sound }) {

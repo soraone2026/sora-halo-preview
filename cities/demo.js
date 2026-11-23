@@ -9,7 +9,7 @@
   };
   function fresh(name) {
     return { avatar: { name: name || "試玩者", finance: { bcoins: 80 }, owned: [] }, profile: { setup_done: true }, records: { finance: [] }, bloom_log: [],
-      mats: { glim: { in: 40, out: 0 }, moss: { in: 12, out: 0 }, pearl: { in: 12, out: 0 }, sand: { in: 12, out: 0 }, lux: { in: 8, out: 0 } },
+      mats: { ink: { in: 40, out: 0 }, moss: { in: 12, out: 0 }, pearl: { in: 12, out: 0 }, sand: { in: 12, out: 0 }, lux: { in: 8, out: 0 } },
       essence: { n: 20, lens: 0, log: [] }, gems: { "G-4": 3, "G-5": 2, "G-6": 2 }, updated_at: Date.now() };
   }
   function read() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
@@ -22,9 +22,9 @@
       for (var i = 0; i < 16; i++) { var k = pick[i % pick.length], d = day(-(i % 10));
         if (k === "learn") log.push({ date: d, amount: 2, reason: "study:quiz" }); else if (k === "play") log.push({ date: d, amount: 2, reason: "mini:game" });
         else { var L = SAMPLES[k]; recs.push({ id: "T-demo-" + (++n), date: d, kind: k === "save" ? "收入" : "消費", item: L[i % L.length], amount: 0 }); } }
-      s.records = { finance: recs }; s.bloom_log = log; s.life = kind; var G = s.grow && s.grow.ferry; if (G) { G.pend = null; G.last = "2000-01-01"; } write(s); },
+      s.records = { finance: recs }; s.bloom_log = log; s.life = kind; Object.keys(s.grow || {}).forEach(function (c) { s.grow[c].pend = null; s.grow[c].last = "2000-01-01"; }); write(s); },
     /* 跳到明天：下次進城就像新的一天（會再漂來兩座） */
     tomorrow: function () { var s = read() || fresh(), R = s.grow = s.grow || {}; Object.keys(R).forEach(function (c) { R[c].last = "2000-01-01"; R[c].pend = null; }); write(s); },
-    info: function () { var s = read() || {}, G = (s.grow || {}).ferry || {}; return { life: s.life || "", isles: (G.slots || []).length, steps: G.steps || 0, fixed: (((s.fix || {}).ferry || {}).done || []).length }; }
+    info: function () { var s = read() || {}, G = (s.grow || {}).liubai || {}; return { life: s.life || "", isles: (G.slots || []).length, steps: G.steps || 0, fixed: (((s.fix || {}).liubai || {}).done || []).length }; }
   };
 })();

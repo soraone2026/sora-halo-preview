@@ -1,0 +1,506 @@
+/* 留白城（2026-11-23，熊：「整體設定不滿意、畫面不夠漂亮、生成的意象太直白沒有美感」→ 選了「水墨留白」）
+ * - 第六座星際城市：一座畫在霧上的水墨山水城。這座城本來就沒畫完——留白的地方，等來的人一筆一筆添上。
+ * - 會長大：每天第一次來，畫師問「今天的留白，要添哪一筆？」，兩句四字題詞選一句（竹窗聽雨、孤舟遠影……），城就多一筆。
+ *   哪兩句、墨的濃淡，看玩家上次來之後的日子（只看記帳的項目、類別、日期與學習、玩的紀錄），但畫面上不說破——只有一句像「硯裡的墨，今天磨得特別細」的話。
+ *   晚上來過的次數 → 月亮越來越圓；來過的天數 → 落款石上的朱印越來越多。所以每個人的留白城都長得不一樣。
+ * - 每天五件小事：點石燈、追墨蝶。做完一件 1 B＋1 份松煙墨。
+ * - 三處要修：空白的匾額、褪色的石拱橋、斷流的瀑布。修好一處拍一張海報；三處都修好，畫師講第六章。
+ * 預覽：?day=YYYY-MM-DD、?nocut、?dbg（window.__ink）
+ */
+import { finAvatar, makePerson, animatePerson } from "../city/city-people.js";
+import { createInkAudio } from "./ink-audio.js";
+import { createRepair } from "../city/repair.js";
+import { makeTrio } from "../city/cityx.js";
+import { makeGames } from "../city/minigame.js";
+import { makeNameTag, playerName } from "../city/nametag.js";
+import { NIKO_LOOK, makeFigure, tickFigure, tourLink, invitePanel, makeCard, cardPanel } from "../city/together.js";
+import { growStart, growPanel, storyCard, BUCKETS } from "../city/grow.js";
+try { if (window.parent !== window) document.body.classList.add("embed"); } catch (e) { document.body.classList.add("embed"); }
+
+const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.170.0/+esm";
+const $ = (s) => document.querySelector(s);
+const I18N = window.SLE_I18N || { lang: "zh" };
+const L = (zh, en) => (I18N.lang === "en" ? en : zh);
+const QS = new URLSearchParams(location.search);
+const SMALL = Math.min(innerWidth, innerHeight) < 600;
+const CITY = "liubai";
+let toastT = 0, sayT = 0;
+function toast(m, ms = 3600) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), ms); }
+function say(m, who, ms = 5600) { const t = $("#say"); t.textContent = m; if (who) { const s = document.createElement("small"); s.textContent = "— " + who; t.append(s); } t.classList.add("show"); clearTimeout(sayT); sayT = setTimeout(() => t.classList.remove("show"), ms); }
+function todayStr() { const q = QS.get("day"); if (q && /^\d{4}-\d{2}-\d{2}$/.test(q)) return q; const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000); return d.toISOString().slice(0, 10); }
+function seedOf(str) { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; return h; }
+function rngOf(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+const DAY = todayStr(), rnd = rngOf(seedOf(CITY + ":" + DAY)), LAND = 40, WIND_T = 26;
+const PAPER = "#ece4d4", INK = "#1d1a18", CINNABAR = "#c03a2b";
+const FS = window.FinSave && FinSave.ok() ? FinSave : null, ST0 = FS && FS.starState ? FS.starState(CITY) : { got: [], n: 0, days: 0 };
+const audio = createInkAudio(seedOf(CITY + ":" + DAY));
+const sndLabel = () => { const b = $("#snd"); if (b) { b.textContent = "♪"; b.title = audio.on ? L("關掉聲音", "Mute") : L("打開聲音", "Sound on"); b.classList.toggle("off", !audio.on); } };
+addEventListener("pointerdown", (e) => { if (!(e.target && e.target.id === "snd")) audio.gesture(); }, { capture: true });
+addEventListener("keydown", () => audio.gesture());
+document.addEventListener("visibilitychange", () => { if (document.hidden) audio.pause(); else audio.resume(); });
+window.__sleSound = (on) => { if (on === false) audio.pause(true); else audio.resume(true); };
+
+/* 可以添的十二筆（每一種生活對應兩種，畫面上只看得到題詞，不說是哪一種生活） */
+const STROKE = {
+  plum: { ch: "梅", name: ["梅邊小立", "Beside the plum"], desc: ["雪還沒化，梅先開了幾點紅。", "The snow hasn't melted, but the plum has opened a few red dots."] },
+  cot: { ch: "炊", name: ["山居炊煙", "Smoke from a mountain hut"], desc: ["有人在山裡煮飯，煙慢慢散進霧裡。", "Someone is cooking in the hills; the smoke drifts into the mist."] },
+  boat: { ch: "舟", name: ["孤舟遠影", "A lone boat, far off"], desc: ["一葉小舟，泊在看不清的水邊。", "A single small boat, moored where the water fades."] },
+  crane: { ch: "鶴", name: ["鶴歸晚晴", "Cranes home in clear dusk"], desc: ["幾隻鶴繞著城，飛了一圈才落下。", "A few cranes circle the city once before they settle."] },
+  pav: { ch: "亭", name: ["半山閒亭", "An idle pavilion"], desc: ["多了一座亭子，可以坐下來。", "A pavilion appears — somewhere to sit down."] },
+  court: { ch: "院", name: ["月門深院", "Moon gate, deep courtyard"], desc: ["一道圓圓的門，門後還有門。", "A round gate, and beyond it, another."] },
+  rock: { ch: "石", name: ["石上清泉", "Spring over stone"], desc: ["一塊老石頭，泉水從它身上流過。", "An old stone with a spring running over it."] },
+  hill: { ch: "山", name: ["遠山一抹", "A brushstroke of far hills"], desc: ["遠處多了一道山，淡得快看不見。", "A new ridge in the distance, so pale it's almost not there."] },
+  bamboo: { ch: "竹", name: ["竹窗聽雨", "Rain through bamboo"], desc: ["一片竹林，風一來就沙沙作響。", "A stand of bamboo that rustles whenever the wind comes."] },
+  pagoda: { ch: "塔", name: ["孤塔凌雲", "A tower into the clouds"], desc: ["一座細細的塔，塔尖沒進雲裡。", "A slender tower, its tip lost in cloud."] },
+  kite: { ch: "鳶", name: ["紙鳶東風", "Kites on the east wind"], desc: ["幾隻紙鳶在城上飄。", "A few paper kites drift over the city."] },
+  lamp: { ch: "燈", name: ["燈火闌珊", "Lanterns, here and there"], desc: ["霧裡亮起幾盞紅燈籠。", "A few red lanterns glow in the mist."] },
+};
+const BUCKET_STROKES = { food: ["plum", "cot"], move: ["boat", "crane"], home: ["pav", "court"], save: ["rock", "hill"], learn: ["bamboo", "pagoda"], play: ["kite", "lamp"] };
+const WHY = { food: ["硯裡的墨，今天帶著一點飯香。", "The ink in the stone smells faintly of supper today."], move: ["墨在硯裡流個不停，像要出門。", "The ink won't stay still in the stone, as if it wants to go somewhere."],
+  home: ["墨色很暖，像屋裡留著的燈。", "The ink is warm today, like a lamp left on at home."], save: ["墨沉在硯底，很穩，很深。", "The ink has settled at the bottom of the stone — steady and deep."],
+  learn: ["墨磨得特別細，像寫了很多字。", "The ink is ground very fine, as if many words were written with it."], play: ["幾滴墨濺出了硯台，像在笑。", "A few drops of ink splashed out of the stone, as if laughing."] };
+const strokeOf = (id) => { const [k, d] = String(id).split("@"); return { k, d: Math.max(1, Math.min(3, +d || 2)) }; };
+const NAMES = [["硯翁", "Old Inkstone"], ["墨娘", "Ink Maid"], ["小毫", "Little Brush"], ["紙伯", "Uncle Paper"], ["阿印", "Seal"]];
+const LINES = [["這城本來就沒畫完。留白的地方，是給後來的人的。", "This city was never finished. The blank places are for whoever comes after."],
+  ["墨要慢慢磨。急了，畫出來的山會發抖。", "Grind the ink slowly. Rush it, and the mountains you paint will tremble."],
+  ["匾額上本來有兩個字，被雨洗掉了。", "There used to be two characters on the plaque. The rain washed them away."],
+  ["石橋的墨淡了，走上去會掉進紙裡。", "The ink on the stone bridge has faded. Step on it and you'd fall into the paper."],
+  ["瀑布斷了以後，連霧都安靜下來。", "Since the waterfall stopped, even the mist has gone quiet."],
+  ["你添的每一筆，城都記得是哪一天。", "Every stroke you add, the city remembers which day it was."],
+  ["墨蝶怕人，可是喜歡跟著人走。", "Ink butterflies are shy, but they like to follow people."],
+  ["你身上有燈芯的味道，還有苔光。", "You smell of lamp wicks, and of mossglow."]];
+
+(async function main() {
+  let THREE;
+  try { THREE = await import(THREE_URL); } catch { $("#loading").textContent = L("留白城需要網路載入 3D。", "Liubai needs the internet to load 3D."); return; }
+  const V3 = THREE.Vector3;
+  let cut = QS.has("nocut") ? null : { ph: "wait", t: 0 };
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" }); }
+  catch (e) { const b = $("#loading"); b.style.pointerEvents = "auto"; b.textContent = L("這個瀏覽器目前無法顯示 3D 城市（WebGL 沒有開啟或顯示卡不支援）。", "This browser can't show the 3D city right now (WebGL is off or unsupported)."); return; }
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, SMALL ? 1.6 : 2)); renderer.setSize(innerWidth, innerHeight); renderer.setClearColor(PAPER);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  $("#stage").append(renderer.domElement);
+  const scene = new THREE.Scene(); scene.fog = new THREE.Fog(PAPER, 34, 210);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.3, 1600);
+  scene.add(new THREE.HemisphereLight("#fffaf0", "#b8ae9e", 1.6)); { const dl = new THREE.DirectionalLight("#ffffff", 1.0); dl.position.set(-30, 60, 40); scene.add(dl); }   /* 只照到人物（其他都是不打光的水墨材質） */
+  const canvasTex = (w, h, draw) => { const cv = document.createElement("canvas"); cv.width = w; cv.height = h; draw(cv.getContext("2d"), w, h); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const ease = (k) => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
+  const dummy = new THREE.Object3D(), _c1 = new THREE.Color(), _c2 = new THREE.Color();
+  const R0 = rngOf(seedOf("liubai-land"));
+
+  /* ---------- 水墨的材質：不打光、有筆觸的紋理；邊緣用反面放大的黑殼描一圈 ---------- */
+  const brushT = canvasTex(256, 256, (c, w, h) => { c.fillStyle = "#fff"; c.fillRect(0, 0, w, h); const r = rngOf(9); for (let k = 0; k < 160; k++) { const y = r() * h, x = r() * w, len = 30 + r() * 120; c.strokeStyle = `rgba(0,0,0,${0.04 + r() * 0.1})`; c.lineWidth = 1 + r() * 5; c.beginPath(); c.moveTo(x, y); c.bezierCurveTo(x + len * 0.3, y + (r() - 0.5) * 8, x + len * 0.7, y + (r() - 0.5) * 8, x + len, y + (r() - 0.5) * 6); c.stroke(); }
+    for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(0,0,0,${r() * 0.05})`; c.fillRect(r() * w, r() * h, 1.5, 1.5); } });
+  brushT.wrapS = brushT.wrapT = THREE.RepeatWrapping;
+  const inkCol = (shade) => _c1.set(PAPER).lerp(_c2.set(INK), Math.max(0, Math.min(1, shade))).clone();
+  const MAT = {}; const inkM = (shade, o = {}) => { const key = shade.toFixed(2) + JSON.stringify(o); return MAT[key] || (MAT[key] = new THREE.MeshBasicMaterial({ color: inkCol(shade), map: brushT, ...o })); };
+  const OUT = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide }), OUT_SOFT = new THREE.MeshBasicMaterial({ color: "#3a3430", side: THREE.BackSide, transparent: true, opacity: 0.55 });
+  const outline = (m, w = 0.05, soft = false) => { const o = new THREE.Mesh(m.geometry, soft ? OUT_SOFT : OUT); o.scale.setScalar(1 + w); o.userData.outline = true; m.add(o); return m; };
+  const mesh = (geo, shade, o = {}) => new THREE.Mesh(geo, inkM(shade, o));
+  const softT = canvasTex(128, 128, (c) => { const g = c.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.5, "rgba(255,255,255,.5)"); g.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = g; c.fillRect(0, 0, 128, 128); });
+  const blotT = canvasTex(256, 256, (c) => { const r = rngOf(31); c.translate(128, 128); for (let k = 0; k < 60; k++) { const a = r() * Math.PI * 2, d = r() * 60, s = 10 + r() * 40; c.fillStyle = `rgba(20,18,16,${0.05 + r() * 0.12})`; c.beginPath(); c.arc(Math.cos(a) * d, Math.sin(a) * d, s, 0, 7); c.fill(); }
+    for (let k = 0; k < 40; k++) { const a = r() * Math.PI * 2, d = 70 + r() * 50; c.fillStyle = `rgba(20,18,16,${0.2 + r() * 0.3})`; c.beginPath(); c.arc(Math.cos(a) * d, Math.sin(a) * d, 1 + r() * 4, 0, 7); c.fill(); } });
+  const spr = (map, color, s, op = 1, o = {}) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, opacity: op, depthWrite: false, ...o })); sp.scale.setScalar(s); return sp; };
+
+  /* ---------- 紙色的天、一輪朱紅的日、層層淡去的遠山 ---------- */
+  { const sky = canvasTex(4, 512, (c, w, h) => { const g = c.createLinearGradient(0, 0, 0, h); [[0, "#d8cfbe"], [0.4, "#e6dece"], [0.5, PAPER], [1, PAPER]].forEach(([k, col]) => g.addColorStop(k, col)); c.fillStyle = g; c.fillRect(0, 0, w, h); });
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 16), new THREE.MeshBasicMaterial({ map: sky, side: THREE.BackSide, fog: false, depthWrite: false })));
+    const sunT = canvasTex(256, 256, (c) => { c.fillStyle = CINNABAR; c.beginPath(); c.arc(128, 128, 110, 0, 7); c.fill(); const r = rngOf(5); for (let k = 0; k < 500; k++) { c.fillStyle = `rgba(236,228,212,${r() * 0.25})`; c.fillRect(r() * 256, r() * 256, 2, 2); } });
+    const sun = spr(sunT, "#ffffff", 70, 0.92, { fog: false }); sun.position.set(-260, 150, -620); scene.add(sun);
+    const ridge = (seed, amp, base, steps) => canvasTex(2048, 256, (c, w, h) => { const r = rngOf(seed); c.clearRect(0, 0, w, h); const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(30,26,24,.95)"); g.addColorStop(0.55, "rgba(30,26,24,.55)"); g.addColorStop(1, "rgba(30,26,24,0)"); c.fillStyle = g;
+      c.beginPath(); c.moveTo(0, h); let y = base; for (let x = 0; x <= w; x += w / steps) { y = Math.max(20, Math.min(h * 0.75, y + (r() - 0.5) * amp)); c.lineTo(x, y + Math.sin(x * 0.02) * 6); } c.lineTo(w, h); c.closePath(); c.fill(); });
+    [[150, 0.42, 1, 60, 90, 90], [240, 0.26, 2, 80, 70, 120], [360, 0.14, 3, 110, 80, 70]].forEach(([R, op, sd, H, amp, steps]) => { const t = ridge(sd + 40, amp, 120, steps); t.wrapS = THREE.RepeatWrapping; t.repeat.x = 2;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 64, 1, true), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: op, side: THREE.BackSide, depthWrite: false, fog: false })); m.position.y = H / 2 - 18; m.rotation.y = sd; scene.add(m); }); }
+
+  /* ---------- 地面：一張紙，邊上散進霧裡 ---------- */
+  const groundT = canvasTex(512, 512, (c, w, h) => { c.fillStyle = "#e6ddca"; c.fillRect(0, 0, w, h); const r = rngOf(12); for (let k = 0; k < 1400; k++) { c.fillStyle = `rgba(60,52,44,${r() * 0.07})`; const s = 4 + r() * 30; c.beginPath(); c.ellipse(r() * w, r() * h, s, s * 0.35, r() * 3, 0, 7); c.fill(); } });
+  groundT.wrapS = groundT.wrapT = THREE.RepeatWrapping; groundT.repeat.set(10, 10);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(LAND + 70, 72), new THREE.MeshBasicMaterial({ map: groundT })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+  const court = new THREE.Mesh(new THREE.CircleGeometry(8.5, 48), new THREE.MeshBasicMaterial({ color: "#f3eee4", map: groundT })); court.rotation.x = -Math.PI / 2; court.position.y = 0.02; scene.add(court);
+  { const ring = new THREE.Mesh(new THREE.RingGeometry(8.4, 8.7, 64), new THREE.MeshBasicMaterial({ color: "#5a524a", transparent: true, opacity: 0.5 })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring); }
+  const mist = []; for (let k = 0; k < (SMALL ? 14 : 22); k++) { const a = k / 22 * Math.PI * 2 + R0() * 0.3, d = LAND + 4 + R0() * 20, s = spr(softT, "#f4efe6", 38 + R0() * 26, 0.85, { fog: false }); s.position.set(Math.cos(a) * d, 2 + R0() * 5, Math.sin(a) * d); s.scale.y *= 0.35; scene.add(s); mist.push({ s, a, d, v: (R0() - 0.5) * 0.01 }); }
+
+  /* ---------- 小溪（東邊，由北往南），只有石拱橋過得去 ---------- */
+  const streamX = (z) => 22 + Math.sin(z * 0.08) * 3;
+  const waterT = canvasTex(256, 256, (c, w, h) => { c.fillStyle = "#c9cfcc"; c.fillRect(0, 0, w, h); const r = rngOf(51); for (let k = 0; k < 70; k++) { c.strokeStyle = `rgba(40,50,56,${0.08 + r() * 0.16})`; c.lineWidth = 1 + r() * 1.6; const y = r() * h, x = r() * w; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 18, y - 3, x + 36, y); c.stroke(); } });
+  waterT.wrapS = waterT.wrapT = THREE.RepeatWrapping;
+  { const pos = [], uv = [], idx = []; let acc = 0, prev = null; const N = 60;
+    for (let i = 0; i <= N; i++) { const z = -48 + i / N * 96, x = streamX(z); if (prev) acc += Math.hypot(x - prev[0], z - prev[1]); prev = [x, z]; pos.push(x - 2.2, 0.04, z, x + 2.2, 0.04, z); uv.push(0, acc / 6, 1, acc / 6); if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+    scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: waterT, side: THREE.DoubleSide })));
+    for (const side of [-1, 1]) { const pts = []; for (let i = 0; i <= N; i++) { const z = -48 + i / N * 96; pts.push(new V3(streamX(z) + side * 2.3, 0.07, z)); }
+      const bank = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.09, 4, false), new THREE.MeshBasicMaterial({ color: "#2a2622" })); scene.add(bank); } }
+
+  const obstacles = [];
+  let bridgeOn = false;
+  const walkable = (x, z) => { if (Math.hypot(x, z) > LAND) return false; const sx = streamX(z); if (Math.abs(x - sx) < 2.5) return bridgeOn && Math.abs(z) < 1.5; if (x > sx && !bridgeOn) return false; return true; };
+  const freeOK = (x, z, gap) => obstacles.every((o) => !(o.r > 0) || Math.hypot(o.x - x, o.z - z) > o.r + gap);
+  const tog = (o, on) => { if (o.r0 == null) { o.r0 = o.r; o.h0 = o.h; } o.r = on ? o.r0 : 0; o.h = on ? o.h0 : -9; };
+
+  /* ---------- 會用到的形狀：中式的屋頂（四角翹起）、松、石 ---------- */
+  function roof(r, h, shade = 0.6) { shade = Math.min(0.58, shade); const pts = []; for (let i = 0; i <= 10; i++) { const k = i / 10; pts.push(new THREE.Vector2(0.02 + r * Math.pow(k, 1.6), h * (1 - k) + (k > 0.85 ? (k - 0.85) * h * 1.8 : 0))); }
+    const m = mesh(new THREE.LatheGeometry(pts, 4), shade, { side: THREE.DoubleSide }); m.rotation.y = Math.PI / 4; return m; }   /* 屋頂是開口的曲面：不描邊（背面的黑殼從上面看會變成一整塊黑） */
+  function pine(s = 1, shade = 0.82) { const g = new THREE.Group(), r = rngOf(seedOf("pine" + s + shade)), pts = []; let x = 0, z = 0; for (let i = 0; i <= 5; i++) { pts.push(new V3(x, i * 1.1 * s, z)); x += (r() - 0.5) * 0.9 * s; z += (r() - 0.5) * 0.6 * s; }
+    const trunk = outline(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.22 * s, 6, false), shade), 0.06); g.add(trunk);
+    for (let k = 0; k < 4; k++) { const p = pts[2 + Math.min(3, k)], pad = mesh(new THREE.SphereGeometry(1, 14, 8), Math.min(0.95, shade + 0.05)); pad.scale.set((1.8 - k * 0.25) * s, 0.42 * s, (1.3 - k * 0.15) * s); pad.position.set(p.x + (r() - 0.5) * 1.6 * s, p.y + 0.3 * s, p.z + (r() - 0.5) * s); outline(pad, 0.05, true); g.add(pad); }
+    return g; }
+  /* 石頭、山壁：圓潤的形狀，上淡下濃、帶幾道皴紋（頂點顏色），不打光也看得出體積 */
+  function stone(s = 1, shade = 0.6, tall = 1) { const geo = new THREE.IcosahedronGeometry(1, 3), p = geo.attributes.position, r = rngOf(seedOf("stone" + s + tall + shade)), ph = [r() * 6, r() * 6, r() * 6], col = [], pc = new THREE.Color(PAPER), ic = new THREE.Color(INK), cc = new THREE.Color();
+    for (let i = 0; i < p.count; i++) { let x = p.getX(i), y = p.getY(i), z = p.getZ(i); const n = 1 + 0.2 * Math.sin(x * 2.1 + ph[0]) * Math.cos(z * 1.7 + ph[1]) + 0.1 * Math.sin(y * 3.3 + ph[2]) + 0.05 * Math.sin((x + z) * 6 + ph[0]);
+      x *= n; z *= n; y = y * tall * n; if (y < -0.3 * tall) y = -0.3 * tall + (y + 0.3 * tall) * 0.25; p.setXYZ(i, x, y, z);
+      const yn = Math.max(0, Math.min(1, (y / tall + 0.3) / 1.3)), cun = Math.max(0, Math.sin(x * 6 + z * 4 + ph[1] + y * 2)) * 0.18, v = Math.max(0, Math.min(1, shade * (0.3 + 0.75 * (1 - yn)) + cun));
+      cc.copy(pc).lerp(ic, v); col.push(cc.r, cc.g, cc.b); }
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
+    const m = outline(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, map: brushT })), 0.035, true); m.scale.setScalar(s); return m; }
+
+  /* ---------- 一開始就在的：廣場的老松、落款石、幾塊石頭 ---------- */
+  { const p = pine(1.3, 0.86); p.position.set(-5.5, 0, -4); scene.add(p); obstacles.push({ x: -5.5, z: -4, r: 1.1, h: 8 });
+    const p2 = pine(0.9, 0.78); p2.position.set(-30, 0, 20); scene.add(p2);
+    for (const [x, z, s] of [[6, -6, 0.9], [-26, -16, 1.4], [12, 24, 1.1], [-14, 26, 0.8]]) { const st = stone(s, 0.55, 1.2); st.position.set(x, s * 0.34, z); scene.add(st); obstacles.push({ x, z, r: s * 1.1, h: s * 2 }); } }
+  const sealStone = stone(1.1, 0.5, 1.5); sealStone.position.set(5.5, 0.48, 4.5); scene.add(sealStone); obstacles.push({ x: 5.5, z: 4.5, r: 1.3, h: 3 });
+
+  /* ---------- 修補：空白的匾額（北邊的牌坊）、褪色的石拱橋（東邊）、斷流的瀑布（西邊） ---------- */
+  const pickables = [], fixSites = {}, proxy = (r, kind, ref, parent, y = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ visible: false })); m.position.y = y; m.userData = { kind, ref }; parent.add(m); pickables.push(m); return m; };
+  const FIXPOS = { plaque: [0, -19], bridge: [streamX(0) - 4.2, 0], fall: [-24, -3] };
+  const TX_FIX = canvasTex(128, 128, (c) => { c.font = "bold 84px 'Noto Serif TC','Microsoft JhengHei',serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = CINNABAR; c.fillRect(22, 22, 84, 84); c.fillStyle = "#f4ede0"; c.fillText("修", 64, 68); });
+  const fixInfo = {
+    plaque: { name: ["空白的匾額", "The blank plaque"], short: ["匾額", "The plaque"], desc: ["牌坊上的匾額被雨洗白了，原本的兩個字一點都看不出來。", "The rain has washed the plaque on the gate blank; not a trace of its two characters remains."],
+      fixed: ["墨一筆一筆回到匾上，寫的是「留白」。", "Stroke by stroke the ink returns to the plaque. It reads: Liubai — leave the blank."], thanks: ["好字。這城總算有名字了。", "Fine brushwork. The city has its name back."], who: ["硯翁・畫師", "Old Inkstone, the painter"] },
+    bridge: { name: ["褪色的石拱橋", "The faded stone bridge"], short: ["石拱橋", "The stone bridge"], desc: ["石拱橋的墨淡掉了，中間幾塊石頭只剩下一點影子，走上去會掉進紙裡。", "The ink of the stone bridge has faded; its middle stones are mere shadows. Step on them and you'd fall into the paper."],
+      fixed: ["石頭一塊塊描回來，橋又拱起來了。", "Stone by stone the bridge is inked back, and it arches over the stream again."], thanks: ["過橋去看看吧，那邊的留白最多。", "Cross and have a look — the far bank has the most blank space."], who: ["紙伯・畫裡的人", "Uncle Paper, of the painting"] },
+    fall: { name: ["斷流的瀑布", "The stopped waterfall"], short: ["瀑布", "The waterfall"], desc: ["山壁上的瀑布斷了，潭底乾成一片灰白。", "The waterfall on the cliff has stopped; the pool below has dried to a pale grey."],
+      fixed: ["水又從山頂落下來，潭裡起了霧。", "Water falls from the cliff top again, and mist rises from the pool."], thanks: ["聽，整座城都有聲音了。", "Listen — the whole city has a voice again."], who: ["墨娘・畫裡的人", "Ink Maid, of the painting"] },
+    _all: ["三個地方都修好了。畫師說，這幅畫總算可以落款。", "All three are repaired. The painter says the picture can finally be signed."] };
+  const mkSite = (id, g, py) => { const [x, z] = FIXPOS[id]; g.position.set(x, 0, z); scene.add(g); proxy(3.2, "fix", id, g, py);
+    const mk = spr(TX_FIX, "#ffffff", 1.8, 1, { depthTest: false }); mk.renderOrder = 12; g.add(mk);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(3.3, 3.5, 48), new THREE.MeshBasicMaterial({ color: CINNABAR, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06; g.add(ring);
+    return (fixSites[id] = { id, g, x, z, mk, ring, my: py + 3.6, k: 0, kt: 0, done: false }); };
+  { /* 牌坊：兩根柱、兩層翹角屋頂、中間一塊匾；修好時「留白」兩個字一筆一筆寫上去 */
+    const g = new THREE.Group(), S = mkSite("plaque", g, 2), gate = new THREE.Group(); gate.position.z = -3; g.add(gate);
+    for (const sx of [-3, 3]) { const col = outline(mesh(new THREE.CylinderGeometry(0.3, 0.34, 6, 10), 0.8), 0.06); col.position.set(sx, 3, 0); gate.add(col); obstacles.push({ x: S.x + sx, z: S.z - 3, r: 0.6, h: 6 }); }
+    const beam = outline(mesh(new THREE.BoxGeometry(7.4, 0.4, 0.5), 0.82), 0.04); beam.position.y = 5.6; gate.add(beam);
+    const rf = roof(5.2, 1.4, 0.88); rf.scale.set(1, 1, 0.35); rf.position.y = 6.2; gate.add(rf);
+    const plCv = document.createElement("canvas"); plCv.width = 512; plCv.height = 192; const plT = new THREE.CanvasTexture(plCv); plT.colorSpace = THREE.SRGBColorSpace;
+    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.35), new THREE.MeshBasicMaterial({ map: plT })); plaque.position.set(0, 4.6, 0.28); gate.add(plaque);
+    const frame = outline(mesh(new THREE.BoxGeometry(3.8, 1.55, 0.18), 0.85), 0.03); frame.position.set(0, 4.6, 0.16); gate.add(frame);
+    let drawnK = -1; const drawPlaque = (k) => { const c = plCv.getContext("2d"), w = 512, h = 192; c.fillStyle = "#efe6d2"; c.fillRect(0, 0, w, h); c.fillStyle = "rgba(60,50,40,.08)"; for (let i = 0; i < 40; i++) c.fillRect((i * 97) % w, (i * 53) % h, 30, 2);
+      if (k > 0) { c.save(); c.beginPath(); c.rect(0, 0, w * Math.min(1, k * 1.05), h); c.clip(); c.fillStyle = INK; c.font = "bold 132px 'Noto Serif TC','Microsoft JhengHei',serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("留白", w / 2, h / 2 + 8); c.restore(); }
+      if (k >= 1) { c.fillStyle = CINNABAR; c.fillRect(w - 60, h - 64, 40, 40); } plT.needsUpdate = true; };
+    drawPlaque(0); S.draw = (k, done) => { const q = done ? 1 : Math.round(S.k * 20) / 20; if (q !== drawnK) { drawnK = q; drawPlaque(q); } }; }
+  let bridgeArch = null;
+  { /* 石拱橋：十一塊拱石，中間五塊淡掉、掉在溪裡；修好時一塊塊描回去 */
+    const g = new THREE.Group(), S = mkSite("bridge", g, 1.5), bg = new THREE.Group(), sx0 = streamX(0); bg.position.set(sx0 - S.x, 0, -S.z); g.add(bg); bridgeArch = bg;
+    const N = 11, stones = []; for (let i = 0; i < N; i++) { const k = i / (N - 1), a = Math.PI * (1 - k), x = Math.cos(a) * 4, y = Math.sin(a) * 1.6, broken = i >= 3 && i <= 7;
+      const m = outline(mesh(new THREE.BoxGeometry(0.85, 0.32, 2.6), 0.62, { transparent: true }), 0.05); m.material = m.material.clone(); m.position.set(x, y, 0); m.rotation.z = Math.atan2(Math.cos(a) * 1.6, -Math.sin(a) * 4);   /* 沿著拱的切線 */ bg.add(m);
+      stones.push({ m, broken, home: m.position.clone(), rz: m.rotation.z, fall: new V3(x * 0.4, -0.6, (i - 5) * 0.4), cur: null }); }
+    S.draw = (k, done) => { let bi = 0; for (const s of stones) { if (!s.broken) continue; const want = done ? 1 : Math.min(1, Math.max(0, S.k * 5 - bi)); bi++; s.cur = s.cur == null ? want : s.cur + (want - s.cur) * (S.snap ? 1 : 0.05); const q = ease(s.cur);
+        s.m.position.lerpVectors(s.fall, s.home, q); s.m.rotation.z = s.rz * q + (1 - q) * 0.6; s.m.material.opacity = 0.15 + q * 0.85; s.m.children.forEach((o) => { o.visible = q > 0.9; }); } bridgeOn = done; }; }
+  let fallRibbon = null, pool = null, fallMist = [];
+  { /* 瀑布：一面山壁、一條白練、下面一個潭；修好時水流下來、起霧 */
+    const g = new THREE.Group(), S = mkSite("fall", g, 1.5);
+    const cliff = stone(5, 0.72, 2.4); cliff.position.set(-8, 3.5, -2); g.add(cliff); obstacles.push({ x: S.x - 8, z: S.z - 2, r: 5.5, h: 18 });
+    const fT = canvasTex(64, 256, (c, w, h) => { c.fillStyle = "rgba(250,248,242,.9)"; c.fillRect(0, 0, w, h); for (let k = 0; k < 40; k++) { c.fillStyle = `rgba(120,128,130,${0.1 + Math.random() * 0.25})`; c.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 20 + Math.random() * 60); } }); fT.wrapT = THREE.RepeatWrapping;
+    fallRibbon = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 12), new THREE.MeshBasicMaterial({ map: fT, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })); fallRibbon.position.set(-2.1, 6, -1.5); fallRibbon.rotation.y = Math.PI / 2; g.add(fallRibbon);
+    pool = new THREE.Mesh(new THREE.CircleGeometry(2.8, 40), new THREE.MeshBasicMaterial({ color: "#d8d2c6", transparent: true, opacity: 0.9 })); pool.rotation.x = -Math.PI / 2; pool.position.set(0.4, 0.05, -1.5); g.add(pool); obstacles.push({ x: S.x + 0.4, z: S.z - 1.5, r: 2.6, h: 0.6 });
+    for (let k = 0; k < 4; k++) { const m = spr(softT, "#ffffff", 5, 0); m.position.set(-1.6 + k * 0.7, 0.8 + k * 0.6, -1.5); g.add(m); fallMist.push(m); }
+    S.draw = (k, done, t) => { fallRibbon.material.opacity = done ? 0.9 : S.k * 0.25; pool.material.color.set(done ? "#b8c4c6" : "#d8d2c6"); if (done) fT.offset.y = -(t * 0.6) % 1; fallMist.forEach((m, i) => { m.material.opacity = done ? 0.35 + Math.sin(t + i) * 0.1 : 0; }); audio.water(done ? 1 : 0); }; }
+
+  /* ---------- 添的每一筆：十二種畫法（濃淡 d：1 淡、2 中、3 濃） ---------- */
+  const SLOTS = [[-12, -10], [12, -11], [-15, 8], [-7, 17], [8, 16], [14, 4], [-20, -24], [16, -26], [-30, 8], [30, -12], [31, 12], [0, 30]];
+  const strokes = [];   /* { i, id, g, mats:[], rev, x, z } */
+  const tagged = (g) => { const mats = []; g.traverse((o) => { if (o.material && !o.userData.outline) { o.material = o.material.clone(); o.material.transparent = true; mats.push([o.material, o.material.opacity]); } else if (o.userData.outline) { o.material = o.material.clone(); o.material.transparent = true; mats.push([o.material, o.material.opacity]); } }); return mats; };
+  function paint(id, x, z) { const { k, d } = strokeOf(id), sh = 0.45 + d * 0.15, g = new THREE.Group(), r = rngOf(seedOf(id + x + z)), obs = [];
+    const put = (o, px, py, pz, ob) => { o.position.set(px, py, pz); g.add(o); if (ob) obs.push({ dx: px, dz: pz, r: ob[0], h: ob[1] }); return o; };
+    if (k === "plum") { for (let b = 0; b < 3; b++) { const pts = []; let px = (b - 1) * 1.2, py = 0, pz = 0; for (let i = 0; i < 6; i++) { pts.push(new V3(px, py, pz)); px += (r() - 0.5) * 1.2; py += 0.6 + r() * 0.5; pz += (r() - 0.5) * 0.8; }
+        put(outline(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 18, 0.12 - b * 0.02, 5, false), sh + 0.1), 0.05), 0, 0, 0);
+        const blo = []; for (let i = 0; i < 26; i++) { const p = pts[2 + Math.floor(r() * 4)]; blo.push(p.x + (r() - 0.5) * 1.4, p.y + (r() - 0.5) * 0.9, p.z + (r() - 0.5) * 1.2); }
+        const bg = new THREE.BufferGeometry(); bg.setAttribute("position", new THREE.Float32BufferAttribute(blo, 3)); put(new THREE.Points(bg, new THREE.PointsMaterial({ map: softT, color: b % 2 ? "#f6eee8" : CINNABAR, size: 0.55, transparent: true, depthWrite: false })), 0, 0, 0); } obs.push({ dx: 0, dz: 0, r: 1.4, h: 4 }); }
+    else if (k === "cot") { const body = outline(mesh(new THREE.BoxGeometry(3, 2, 2.4), 0.12), 0.03); put(body, 0, 1, 0, [2, 3]); const rf = roof(2.6, 1.3, sh + 0.1); rf.scale.set(1.2, 1, 0.95); put(rf, 0, 2, 0);
+      g.userData.smoke = []; for (let i = 0; i < 6; i++) { const s = spr(softT, "#8a8480", 1.6, 0.4); put(s, 0.8, 3.5 + i, 0); g.userData.smoke.push({ s, ph: i / 6 }); } }
+    else if (k === "boat") { const pond = new THREE.Mesh(new THREE.CircleGeometry(3.6, 40), new THREE.MeshBasicMaterial({ map: waterT, color: "#ffffff" })); pond.rotation.x = -Math.PI / 2; put(pond, 0, 0.04, 0, [3.4, 0.4]);
+      const hull = outline(mesh(new THREE.CylinderGeometry(0.6, 0.25, 0.4, 10, 1, false, 0, Math.PI), sh), 0.06); hull.rotation.set(Math.PI / 2, 0, Math.PI / 2); hull.scale.set(1, 3, 1); const bt = new THREE.Group(); bt.add(hull); const man = outline(mesh(new THREE.ConeGeometry(0.4, 0.9, 10), sh + 0.1), 0.06); man.position.set(0.4, 0.55, 0); bt.add(man); put(bt, 0, 0.25, 0); g.userData.boat = bt; }
+    else if (k === "crane") { const cT = craneT; g.userData.cranes = []; for (let i = 0; i < 3 + d; i++) { const s = spr(cT, "#ffffff", 1.3, 0.85); put(s, 0, 12, 0); g.userData.cranes.push({ s, a: r() * 6, rr: 5 + r() * 8, h: 11 + r() * 7, v: 0.2 + r() * 0.15 }); } const st = stone(0.6, sh - 0.1, 0.8); put(st, 0, 0.4, 0, [0.8, 1]); }
+    else if (k === "pav") { const base = outline(mesh(new THREE.CylinderGeometry(2.6, 2.8, 0.4, 6), 0.2), 0.03); put(base, 0, 0.2, 0); for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + Math.PI / 4, col = outline(mesh(new THREE.CylinderGeometry(0.1, 0.12, 2.6, 6), sh + 0.15), 0.08); put(col, Math.cos(a) * 1.8, 1.7, Math.sin(a) * 1.8, [0.3, 3]); }
+      const rf = roof(3.2, 1.8, sh + 0.15); put(rf, 0, 3, 0); const tip = outline(mesh(new THREE.SphereGeometry(0.18, 8, 6), sh + 0.2), 0.08); put(tip, 0, 4.85, 0); }
+    else if (k === "court") { const sh2 = new THREE.Shape(); sh2.moveTo(-4, 0); sh2.lineTo(4, 0); sh2.lineTo(4, 3.4); sh2.lineTo(-4, 3.4); sh2.closePath(); const hole = new THREE.Path(); hole.absarc(0, 1.7, 1.35, 0, Math.PI * 2, true); sh2.holes.push(hole);
+      const wall = outline(mesh(new THREE.ExtrudeGeometry(sh2, { depth: 0.4, bevelEnabled: false, curveSegments: 24 }), 0.1), 0.02); put(wall, 0, 0, -0.2); obs.push({ dx: -2.9, dz: 0, r: 1.1, h: 3.5 }, { dx: 2.9, dz: 0, r: 1.1, h: 3.5 });
+      const cap = outline(mesh(new THREE.BoxGeometry(8.4, 0.3, 0.8), sh + 0.15), 0.04); put(cap, 0, 3.55, 0); const tr = pine(0.6, sh); put(tr, 1.5, 0, -3); }
+    else if (k === "rock") { const st = stone(1.4, sh, 2.2); put(st, 0, 0.9, 0, [1.6, 4]); const fT2 = canvasTex(32, 128, (c, w, h) => { c.fillStyle = "rgba(255,255,255,.85)"; c.fillRect(0, 0, w, h); }); const rib = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 3.4), new THREE.MeshBasicMaterial({ map: fT2, transparent: true, opacity: 0.8, side: THREE.DoubleSide })); put(rib, 1.2, 1.7, 0.6); }
+    else if (k === "hill") { const h = stone(9, sh - 0.2, 1.3); const dir = Math.atan2(z, x); put(h, Math.cos(dir) * 26, 2, Math.sin(dir) * 26); h.scale.z *= 0.6; }   /* 遠一點、淡一點的一道山 */
+    else if (k === "bamboo") { const n = 10 + d * 4, poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.09, 1, 6), inkM(sh + 0.05), n); g.userData.bamboo = []; for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, rr = Math.sqrt(r()) * 2.4, hh = 5 + r() * 4; dummy.position.set(Math.cos(a) * rr, hh / 2, Math.sin(a) * rr); dummy.rotation.set((r() - 0.5) * 0.1, 0, (r() - 0.5) * 0.1); dummy.scale.set(1, hh, 1); dummy.updateMatrix(); poles.setMatrixAt(i, dummy.matrix); }
+      put(poles, 0, 0, 0, [2.4, 6]); const lv = []; for (let i = 0; i < 60 + d * 20; i++) { const a = r() * Math.PI * 2, rr = Math.sqrt(r()) * 3; lv.push(Math.cos(a) * rr, 3.5 + r() * 5, Math.sin(a) * rr); } const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute(lv, 3)); put(new THREE.Points(lg, new THREE.PointsMaterial({ map: leafT, color: inkCol(sh + 0.1), size: 1.1, transparent: true, depthWrite: false })), 0, 0, 0); }
+    else if (k === "pagoda") { for (let i = 0; i < 5; i++) { const s = 1 - i * 0.14, body = outline(mesh(new THREE.CylinderGeometry(1.1 * s, 1.2 * s, 1.5, 8), 0.12), 0.03); put(body, 0, 0.75 + i * 2.1, 0); const rf = roof(2.2 * s, 0.8, sh + 0.15); put(rf, 0, 1.55 + i * 2.1, 0); }
+      const sp = outline(mesh(new THREE.CylinderGeometry(0.04, 0.08, 2, 6), sh + 0.2), 0.1); put(sp, 0, 12.2, 0); obs.push({ dx: 0, dz: 0, r: 1.5, h: 12 }); }
+    else if (k === "kite") { g.userData.kites = []; for (let i = 0; i < 2 + d; i++) { const s = spr(kiteT, "#ffffff", 1.8, 0.95); put(s, 0, 12, 0); const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(), new V3()]), new THREE.LineBasicMaterial({ color: "#5a524a", transparent: true, opacity: 0.6 })); g.add(ln); g.userData.kites.push({ s, ln, a: r() * 6, rr: 2 + r() * 5, h: 10 + r() * 6 }); }
+      const post = outline(mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), sh), 0.1); put(post, 0, 0.7, 0, [0.4, 1.4]); }
+    else { /* 燈：兩根竹竿之間一條垂下來的繩，掛一排紅燈籠 */
+      for (const sx of [-3.2, 3.2]) { const post = outline(mesh(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 6), sh), 0.1); put(post, sx, 1.7, 0, [0.35, 3.4]); }
+      const rope = new THREE.CatmullRomCurve3([new V3(-3.2, 3.3, 0), new V3(-1.2, 2.75, 0), new V3(1.2, 2.75, 0), new V3(3.2, 3.3, 0)]); put(new THREE.Mesh(new THREE.TubeGeometry(rope, 24, 0.025, 4, false), inkM(0.85)), 0, 0, 0);
+      const n = 3 + d * 2; for (let i = 0; i < n; i++) { const p = rope.getPoint((i + 0.5) / n), lan = outline(new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), new THREE.MeshBasicMaterial({ color: CINNABAR, map: brushT })), 0.08); lan.scale.y = 1.25;
+        put(lan, p.x, p.y - 0.42, p.z); const cap = mesh(new THREE.CylinderGeometry(0.09, 0.12, 0.08, 10), 0.9); put(cap, p.x, p.y - 0.1, p.z); const gl = spr(softT, "#ffb08a", 1.2, 0.35); put(gl, p.x, p.y - 0.42, p.z); } }
+    g.position.set(x, 0, z); g.rotation.y = r() * Math.PI * 2; scene.add(g);
+    const ca = Math.cos(g.rotation.y), sa = Math.sin(g.rotation.y), wobs = obs.map((o) => { const ob = { x: x + o.dx * ca + o.dz * sa, z: z - o.dx * sa + o.dz * ca, r: o.r, h: o.h }; obstacles.push(ob); return ob; });
+    return { g, wobs }; }
+  const craneT = canvasTex(128, 64, (c) => { c.strokeStyle = INK; c.fillStyle = INK; c.lineCap = "round"; c.lineWidth = 5; c.beginPath(); c.moveTo(10, 34); c.quadraticCurveTo(40, 8, 64, 30); c.quadraticCurveTo(88, 8, 118, 34); c.stroke(); c.lineWidth = 3; c.beginPath(); c.moveTo(64, 30); c.lineTo(64, 44); c.stroke(); c.fillStyle = CINNABAR; c.beginPath(); c.arc(64, 28, 3, 0, 7); c.fill(); });
+  const kiteT = canvasTex(64, 96, (c) => { c.fillStyle = "#f4ede2"; c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.moveTo(32, 4); c.lineTo(58, 34); c.lineTo(32, 64); c.lineTo(6, 34); c.closePath(); c.fill(); c.stroke(); c.fillStyle = CINNABAR; c.beginPath(); c.arc(32, 34, 7, 0, 7); c.fill(); c.beginPath(); c.moveTo(32, 64); c.quadraticCurveTo(22, 78, 34, 92); c.stroke(); });
+  const leafT = canvasTex(64, 64, (c) => { c.fillStyle = INK; c.translate(32, 32); for (let k = 0; k < 3; k++) { c.rotate(0.9); c.beginPath(); c.ellipse(10, 0, 14, 3.2, 0, 0, 7); c.fill(); } });
+  function addStroke(i, id, reveal) { if (i >= SLOTS.length) return null; const [x, z] = SLOTS[i]; if (!walkable(x, z) && !(x > 0 && Math.abs(x - streamX(z)) > 2.5)) return null; const { g, wobs } = paint(id, x, z); const mats = reveal ? tagged(g) : null;
+    if (mats) { mats.forEach(([m]) => { m.opacity = 0; }); wobs.forEach((o) => tog(o, false)); }
+    const st = { i, id, g, mats, wobs, rev: reveal ? { t: 0 } : null, x, z }; strokes.push(st); if (reveal) { const b = spr(blotT, "#ffffff", 1, 0.9); b.position.set(x, 0.3, z); b.material.depthTest = false; scene.add(b); st.blot = b; } return st; }
+
+  /* ---------- 畫裡的人 ---------- */
+  const folks = [];
+  { const desk = outline(mesh(new THREE.BoxGeometry(1.8, 0.7, 0.9), 0.75), 0.04); desk.position.set(2.6, 0.35, -2.4); scene.add(desk); obstacles.push({ x: 2.6, z: -2.4, r: 1.1, h: 1 });
+    const inkstone = mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.1, 16), 0.95); inkstone.position.set(2.3, 0.75, -2.4); scene.add(inkstone); }
+  const FOLKPOS = [[2.6, -3.6], [-9, 4], [10, 9], [-6, -14], [-18, 16]];
+  for (let i = 0; i < NAMES.length; i++) { const [x, z] = FOLKPOS[i];
+    const p = makePerson(THREE, { top: ["#4a4a52", "#d8d0c0", "#6a6a72", "#3a4048", "#b0a898"][i], bottom: "#2a2826", longHair: i === 1 || i === 4, hair: "#1d1a18", skin: "#e8d8c4" }, rnd); p.position.set(x, 0, z); p.rotation.y = Math.atan2(-x, -z); scene.add(p);
+    proxy(1.2, "folk", folks.length, p, 1.0); obstacles.push({ x, z, r: 0.6, h: 2 }); folks.push({ p, i, x, z, ph: rnd() * 6, tap: -99, face: 0 }); }
+  function talk(f, now) { if (now - f.tap < 2) return; f.tap = now; f.face = 2.5; audio.voice(f.i); const line = LINES[(seedOf(DAY + f.i) + Math.floor(now / 9)) % LINES.length]; say(L(line[0], line[1]), L(`${NAMES[f.i][0]}・畫裡的人`, `${NAMES[f.i][1]}, of the painting`), 6500); }
+
+  /* ---------- 會長大：已經添的筆、月亮（晚上來過幾次）、落款石上的朱印（來過幾天） ---------- */
+  const G0 = FS && FS.growState ? FS.growState(CITY) : { slots: [], lv: {}, night: 0, visits: 0, steps: 0 };
+  (G0.slots || []).forEach((id, i) => { if (STROKE[strokeOf(id).k]) addStroke(i, id, false); });
+  const moonT = (n) => canvasTex(256, 256, (c) => { const f = Math.min(1, (n || 0) / 12); c.fillStyle = "#f8f4ea"; c.beginPath(); c.arc(128, 128, 100, 0, 7); c.fill(); c.globalCompositeOperation = "destination-out"; c.beginPath(); c.arc(128 + 200 * f + 18, 128, 100, 0, 7); c.fill(); c.globalCompositeOperation = "source-over"; c.strokeStyle = "rgba(40,36,32,.6)"; c.lineWidth = 3; c.beginPath(); c.arc(128, 128, 100, 0, 7); c.stroke(); });
+  const moon = spr(moonT(G0.night), "#ffffff", 40, 0.9, { fog: false }); moon.position.set(300, 170, -520); scene.add(moon);
+  let sealMesh = null; const placeSeals = (n) => { if (sealMesh) { sealStone.remove(sealMesh); sealMesh = null; } const N = Math.min(24, n || 0); if (!N) return; sealMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 0.22, 0.04), new THREE.MeshBasicMaterial({ color: CINNABAR }), N);
+    for (let i = 0; i < N; i++) { const a = -0.6 + (i % 6) * 0.24, y = 0.9 - Math.floor(i / 6) * 0.3; dummy.position.set(Math.sin(a) * 0.98, y, Math.cos(a) * 0.98); dummy.rotation.set(0, a, (i % 3 - 1) * 0.1); dummy.scale.setScalar(1); dummy.updateMatrix(); sealMesh.setMatrixAt(i, dummy.matrix); } sealStone.add(sealMesh); };
+  placeSeals(G0.visits);
+
+  /* ---------- 每天五件小事：點石燈、追墨蝶 ---------- */
+  const got = new Set(ST0.got || []);
+  const kinds = ["lamp", "moth", "lamp", ["lamp", "moth"][Math.floor(rnd() * 2)], "moth"]; for (let k = kinds.length - 1; k > 0; k--) { const j = Math.floor(rnd() * (k + 1)); [kinds[k], kinds[j]] = [kinds[j], kinds[k]]; }
+  const used = [[0, 0, 9], ...SLOTS.map(([x, z]) => [x, z, 5])];
+  const freeSpot = () => { for (let tries = 0; tries < 200; tries++) { const a = rnd() * Math.PI * 2, d = 9 + Math.sqrt(rnd()) * 16, x = Math.cos(a) * d, z = Math.sin(a) * d; if (walkable(x, z) && freeOK(x, z, 2) && used.every(([sx, sz, gp]) => Math.hypot(sx - x, sz - z) > (gp || 5))) { used.push([x, z]); return [x, z]; } } return [rnd() * 6 - 3, 10]; };
+  const mothT = canvasTex(64, 64, (c) => { c.fillStyle = INK; c.beginPath(); c.ellipse(20, 26, 16, 10, -0.5, 0, 7); c.ellipse(44, 26, 16, 10, 0.5, 0, 7); c.fill(); c.beginPath(); c.ellipse(24, 42, 9, 6, -0.3, 0, 7); c.ellipse(40, 42, 9, 6, 0.3, 0, 7); c.fill(); });
+  const evs = kinds.map((kind, i) => { const e = { i, kind, state: got.has(i) ? "done" : "wait", t: 0, g: new THREE.Group() };
+    if (kind === "lamp") { const [x, z] = freeSpot(); Object.assign(e, { x, z }); const base = outline(mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.2, 8), 0.55), 0.06); base.position.y = 0.6; e.g.add(base);
+      const hood = roof(0.75, 0.5, 0.8); hood.position.y = 1.75; e.g.add(hood); const box = mesh(new THREE.BoxGeometry(0.55, 0.45, 0.55), 0.2); box.position.y = 1.45; e.g.add(box); e.box = box;
+      const gl = spr(softT, "#ffb07a", 2, 0); gl.position.y = 1.45; e.g.add(gl); e.gl = gl; e.g.position.set(x, 0, z); proxy(1.5, "ev", i, e.g, 1.2); obstacles.push(e.obs = { x, z, r: 0.7, h: 2 }); }
+    else { const r = 9 + rnd() * 10, a0 = rnd() * Math.PI * 2; Object.assign(e, { r, a0, w: (rnd() < 0.5 ? -1 : 1) * (0.14 + rnd() * 0.08), x: Math.cos(a0) * r, z: Math.sin(a0) * r, ph: rnd() * 6 });
+      const m = spr(mothT, "#ffffff", 1.1, 0.95); e.g.add(m); e.m = m; proxy(1.6, "ev", i, e.g, 0); }
+    if (e.state === "done" && kind === "lamp") { e.gl.material.opacity = 0.6; e.box.material = new THREE.MeshBasicMaterial({ color: "#ffd8a8" }); } else e.g.visible = e.state !== "done";
+    scene.add(e.g); return e; });
+  const showCount = () => { const n = evs.filter((e) => e.state !== "wait").length, el = $("#echo"); el.textContent = `墨 ${n} / 5`; el.classList.toggle("full", n >= 5); };
+  showCount();
+  function finish(e) { if (e.state !== "wait") return;
+    if (!QS.get("day") && todayStr() !== DAY) { toast(L("過了午夜，畫換了一頁。重新整理……", "Midnight has passed — the painting turns a page. Reloading…")); setTimeout(() => location.reload(), 1600); return; }
+    e.state = "go"; e.t = 0; audio.task();
+    const r = FS && FS.starDone ? FS.starDone(CITY, e.i) : null, cnt = evs.filter((x) => x.state !== "wait").length; showCount();
+    const what = e.kind === "lamp" ? L("石燈亮了", "The stone lantern is lit") : L("墨蝶停在你的指尖", "The ink butterfly rests on your fingertip");
+    if (r) { toast(L(`${what}（${r.count}/5）　+1 B・松煙墨 +${r.mat || 1}`, `${what} (${r.count}/5)  +1 B · pine-soot ink +${r.mat || 1}`), 4200); fixes.refresh();
+      if (r.bonus) setTimeout(() => { const b = r.bonus; say(L("五件事都做完了。整幅畫的墨色，像是深了一點。", "All five are done. The ink of the whole painting seems a shade deeper."), b.type === "ore" ? L("回響：一顆原石", "Echo: a raw gem") : b.type === "dew" ? L(`回響：元液 +${b.n}`, `Echo: essence +${b.n}`) : L(`回響：+${b.n} B`, `Echo: +${b.n} B`), 7500); audio.fix(); }, 2600); }
+    else toast(L(`${what}（${cnt}/5）`, `${what} (${cnt}/5)`)); }
+
+  /* ---------- 修補面板＋海報＋故事 ---------- */
+  let fixes = { refresh() { } }, fixGo = null;
+  fixes = createRepair({ city: CITY, L, toast, say, FS, info: fixInfo, sound: (n) => { if (n === 1) audio.task(); else { audio.fix(); if (n === 2) setTimeout(() => audio.hum(), 900); } },
+    onUpdate: (id, k, done, just) => { const S = fixSites[id]; S.kt = k; S.done = done; S.mk.visible = !done; unstick(); if (just) setTimeout(() => makePoster(id), 3600); if (just && Object.values(fixSites).every((x) => x.done)) setTimeout(() => tellStory(), 19000); } });
+  function tellStory(force) { if (!force && !(FS && FS.growStory && FS.growStory(CITY))) return; audio.fix();
+    storyCard({ L, chapter: L("第六章", "Chapter 6"), title: L("留白", "The blank space"),
+      paras: [L("匾額上的字寫好了。老畫師退後一步，看了很久：「這城，本來就沒畫完。」", "The characters on the plaque are finished. The old painter steps back and looks for a long while. \"This city was never finished.\""),
+        L("「畫它的人說，留白的地方是給後來的人的。每一個好好過完一天的人，都會在這裡添一筆。」", "\"Whoever painted it said the blank spaces were for those who came after. Everyone who gets through a day well adds one stroke here.\""),
+        L("你回頭看。那片竹、那座亭、那艘小舟——你想起自己是在哪些日子把它們添上的。", "You look back — the bamboo, the pavilion, the little boat — and you remember which days you added them."),
+        L("老畫師捲起一幅舊畫遞給你。畫的最邊上，有一座城只勾了輪廓，旁邊寫著一行小字：「光要回去的地方」。", "He rolls up an old scroll and hands it to you. At its very edge is a city drawn only in outline, and beside it a line of small writing: \"Where the light goes home.\"")],
+      sign: L("— 硯翁・留白城的畫師", "— Old Inkstone, painter of Liubai"), next: L("畫軸的下一段，還沒有展開。（下一座城，還在路上）", "The next length of the scroll is still rolled up. (The next city is on its way.)"), keep: L("收好這一章", "Keep this chapter"),
+      onClose: () => { storyBtn(); toast(L("想再讀一次，點右上角的「卷」", "Tap 卷 at the top right to read it again")); } }); }
+  let sBtn = null; function storyBtn() { if (sBtn) return; const b = document.createElement("button"); b.className = "btn snd seal"; b.type = "button"; b.textContent = "卷"; b.title = L("第六章", "Chapter 6"); b.onclick = (e) => { e.stopPropagation(); tellStory(true); }; $(".hud").insertBefore(b, $("#snd")); sBtn = b; }
+  function unstick() { for (let it = 0; it < 4; it++) for (const o of obstacles) { if (!(o.r > 0)) continue; const ox = P.x - o.x, oz = P.z - o.z, od = Math.hypot(ox, oz) || 0.001; if (od < o.r) { P.x = o.x + ox / od * (o.r + 0.05); P.z = o.z + oz / od * (o.r + 0.05); } } }
+  const fixNear = (S) => Math.hypot(P.x - S.x, P.z - S.z);
+  function fixTap(id) { const S = fixSites[id]; if (fixNear(S) < 6.5) { fixes.open(id); return; } fixGo = id; P.stuck = 0;
+    const cand = [[-4.4, 0], [4.4, 0], [0, -4.4], [0, 4.4], [-3, 3], [3, 3], [0, 3]].map(([dx, dz]) => [S.x + dx, S.z + dz]).filter(([x, z]) => walkable(x, z) && freeOK(x, z, 0.4)).sort((p, q) => Math.hypot(p[0] - P.x, p[1] - P.z) - Math.hypot(q[0] - P.x, q[1] - P.z));
+    if (!cand.length) { fixGo = null; return; } [P.tx, P.tz] = cand[0]; markAt(P.tx, P.tz); }
+  const _mw = new V3();
+  function fixFrame(t, dt) { for (const S of Object.values(fixSites)) { if (S.snap) S.k = S.kt; S.k += (S.kt - S.k) * 0.04; S.draw(S.k, S.done, t, dt); S.snap = false; S.ring.visible = S.mk.visible;
+      if (S.mk.visible) { S.mk.position.y = S.my + Math.sin(t * 2 + S.x) * 0.2; S.mk.getWorldPosition(_mw); S.mk.material.opacity = Math.min(1, Math.max(0, (_mw.distanceTo(camera.position) - 5) / 4)); S.ring.material.opacity = 0.3 + Math.sin(t * 2.2 + S.x) * 0.12; } }
+    if (fixGo) { const S = fixSites[fixGo]; if (fixNear(S) < 5.4) { fixes.open(fixGo); fixGo = null; } }
+    else if (fixes.isOpen && Object.values(fixSites).every((S) => fixNear(S) > 9)) fixes.close(); }
+  const POSTER_CAM = { plaque: [[0, 4.2, -9], [0, 4.4, -22]], bridge: [[16, 3.5, 9], [22, 1, 0]], fall: [[-14, 5, 6], [-30, 6, -5]] };
+  function makePoster(id) { try {
+      const [cp, lk] = POSTER_CAM[id], oldP = camera.position.clone(), oldQ = camera.quaternion.clone(), oldA = camera.aspect, oldF = camera.fov;
+      const W = 360, H = 480, rt = new THREE.WebGLRenderTarget(W * 2, H * 2, { colorSpace: THREE.SRGBColorSpace }); camera.position.set(...cp); camera.lookAt(...lk); camera.aspect = W / H; camera.fov = 52; camera.updateProjectionMatrix();
+      const nm = nameTag.visible; nameTag.visible = false; renderer.setRenderTarget(rt); renderer.render(scene, camera); const px = new Uint8Array(W * 2 * H * 2 * 4); renderer.readRenderTargetPixels(rt, 0, 0, W * 2, H * 2, px); renderer.setRenderTarget(null); rt.dispose(); nameTag.visible = nm;
+      camera.position.copy(oldP); camera.quaternion.copy(oldQ); camera.aspect = oldA; camera.fov = oldF; camera.updateProjectionMatrix();
+      const src = document.createElement("canvas"); src.width = W * 2; src.height = H * 2; const sc = src.getContext("2d"), id2 = sc.createImageData(W * 2, H * 2); for (let y = 0; y < H * 2; y++) id2.data.set(px.subarray((H * 2 - 1 - y) * W * 8, (H * 2 - y) * W * 8), y * W * 8); sc.putImageData(id2, 0, 0);
+      const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const c = cv.getContext("2d"); c.fillStyle = "#efe7d6"; c.fillRect(0, 0, W, H); c.drawImage(src, 0, 0, W * 2, H * 2 * 0.8, 16, 16, W - 32, (H - 32) * 0.8);
+      c.strokeStyle = "rgba(30,26,24,.6)"; c.lineWidth = 1.2; c.strokeRect(16, 16, W - 32, (H - 32) * 0.8); c.fillStyle = INK; c.textAlign = "center";
+      const I = fixInfo[id]; c.font = "700 24px 'Noto Serif TC','Microsoft JhengHei',serif"; c.fillText(L(`${I.short[0]}・留白城`, `${I.short[1]} · Liubai`), W / 2, H - 58);
+      c.font = "12px Georgia, serif"; c.fillStyle = "#6a5e52"; c.fillText(DAY.replace(/-/g, "."), W / 2, H - 30); c.fillStyle = CINNABAR; c.fillRect(W - 58, H - 70, 30, 30); c.fillStyle = "#f4ede0"; c.font = "bold 18px serif"; c.fillText("修", W - 43, H - 49);
+      const url = cv.toDataURL("image/jpeg", 0.8), ok = FS && FS.cityPoster ? FS.cityPoster(CITY, id, url, `${I.short[0]}修好了・留白城`, `${I.short[1]} repaired · Liubai`) : false;
+      const ov = document.createElement("div"); ov.className = "posterov"; ov.innerHTML = `<div class="pcard"><small>${L("送你一張修復紀念", "A souvenir of the repair")}</small><img alt=""><p>${ok ? L("已經收進家裡的海報冊。", "It's in the poster album at home.") : L("（從遊戲裡進來，才會收進海報冊）", "(Enter from the game to keep it in your poster album)")}</p><button class="btn primary" type="button">${L("好", "OK")}</button></div>`;
+      ov.querySelector("img").src = url; ov.addEventListener("pointerdown", (e) => e.stopPropagation()); ov.querySelector("button").onclick = () => ov.remove(); document.body.append(ov);
+    } catch (e) { console.warn(e); } }
+
+  /* ---------- 玩家 ---------- */
+  const me = new THREE.Group(); scene.add(me);
+  const av = finAvatar(THREE) || makePerson(THREE, { top: "#f0eee8", bottom: "#4a4a52", longHair: true, hair: "#1d1a18", skin: "#f1d3bd" }, Math.random); me.add(av);
+  const nameTag = makeNameTag(THREE, playerName(), null, { color: INK, glow: "#ffffff", size: 0.42 }); nameTag.position.y = 1.98; me.add(nameTag);
+  const P = { x: 0, z: 6, tx: null, tz: null }, cam = { yaw: 0, pitch: 0.28, dist: 60, want: SMALL ? 14 : 12.5 };
+  const mark = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.68, 32), new THREE.MeshBasicMaterial({ color: CINNABAR, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })); mark.rotation.x = -Math.PI / 2; scene.add(mark);
+  const markAt = (x, z) => { mark.position.set(x, 0.06, z); mark.material.opacity = 0.9; $("#hint").classList.add("off"); };
+  for (const id of Object.keys(fixSites)) { const S = fixSites[id], st = fixes.site(id); S.k = S.kt = st.k; S.done = st.done; S.mk.visible = !st.done; S.snap = true; S.draw(S.k, S.done, 0, 0); }
+  unstick(); if (G0.story) storyBtn();
+
+  /* ---------- 每天的小事：亭簷三個小鈴；小遊戲：接落梅、印章配對 ---------- */
+  const MZ = { lux: ["曦晶", "halo crystal"], sand: ["時砂", "time sand"], pearl: ["潮珠", "tide pearl"], moss: ["苔光", "moss light"], ink: ["松煙墨", "pine-soot ink"] };
+  const cx = makeTrio({ THREE, scene, pickables, spots: [[-7.6, 1.6, -1.5], [7.4, 1.6, 0.8], [-1.6, 1.6, 7.8]], color: "#e8c8a0", done: !!(FS && FS.cityxState && FS.cityxState(CITY).done),
+    onLight: (n, N) => { if (n < N) toast(L(`簷鈴（${n}/${N}）`, `Eave bells (${n}/${N})`), 2000); },
+    onAll: () => { audio.fix(); say(L("三個小鈴一起響了一聲，霧好像散開了一點。", "The three little bells chime together, and the mist seems to part a little."), L("簷鈴", "Eave bells"), 6500); const r = FS && FS.cityxDo ? FS.cityxDo(CITY) : null; if (r) setTimeout(() => toast(L(`✨ 今天的小事完成了　+${r.b} B${r.matN ? `・${MZ[r.mat][0]} +${r.matN}` : ""}${r.ess ? `・元液 +${r.ess}` : ""}`, `✨ Today's little thing is done  +${r.b} B${r.matN ? ` · ${MZ[r.mat][1]} +${r.matN}` : ""}${r.ess ? ` · essence +${r.ess}` : ""}`), 4200), 1800); } });
+  const mg = makeGames({ THREE, scene, pickables, city: CITY, L, toast, list: [
+    { key: "plum", type: "catch", pos: [-10.5, 0, -4.5], icon: "🌸", color: "#e8a8a0", title: ["接落梅", "Falling Plum"], intro: ["風把梅花吹下來了。拖著小籃子接住花瓣，別接到墨滴。", "The wind is shaking down the plum blossom. Drag the basket to catch the petals — not the ink drops."], how: ["左右拖動畫面移動籃子", "Drag left and right to move the basket"], theme: { bg: "#e8e0d0", bg2: "#c8bca8", fg: "#3a2a22", good: ["🌸", "🌺", "🍃", "🪷"], bad: ["💧"], basket: "🧺" } },
+    { key: "seals", type: "memory", pos: [10.5, 0, -3.5], icon: "🀄", color: "#c03a2b", title: ["印章配對", "Seal Pairs"], intro: ["畫師的印章散了一桌。翻開兩方，找到一樣的。", "The painter's seals are scattered across the desk. Turn over two and find the matching ones."], how: ["一次翻兩張", "Turn over two at a time"], theme: { bg: "#e8e0d0", bg2: "#d0c4b0", fg: "#3a2a22", card: "#c03a2b", back: "印", pairs: ["🌸", "🎋", "🏮", "🪷", "🍵", "🌙"] } }] });
+  window.__mg = { play: (i) => mg.play(i), cur: () => mg.cur, pos: (i) => mg.pos(i).toArray().map((v) => +v.toFixed(2)) };
+
+  /* ---------- 一起：週末的 Niko、共遊的朋友、合照小卡 ---------- */
+  const together = { niko: null, others: {} }, NLN = [["A city that waits for people to finish it. I like its manners.", "一座等人來畫完的城。我喜歡它的禮貌。"], ["You chose the bamboo. I would have chosen the bamboo too. Probably.", "妳選了竹子。我也會選竹子。大概。"], ["The ink smells like rain. Or rain smells like ink.", "墨聞起來像雨。還是雨聞起來像墨。"]];
+  if (QS.get("niko") === "1") { const n = makeFigure(THREE, NIKO_LOOK, "Niko"); n.x = P.x - 1.2; n.z = P.z + 1.2; n.say = 7; scene.add(n.p); together.niko = n; }
+  const tourOn = !!FS && /^https?:/.test(location.protocol) && !window.StarDemo;   /* 靜態試玩版沒有伺服器：不開邀請 */
+  if (tourOn) tourLink({ city: CITY, L, toast, getMe: () => ({ x: P.x, z: P.z, ry: av.rotation.y, m: P.tx !== null ? "walk" : "idle" }), onSync: (list) => {
+    const seen = new Set(); for (const o of list) { seen.add(o.uid); let f = together.others[o.uid];
+      if (!f) { f = together.others[o.uid] = makeFigure(THREE, o.look || {}, o.name || "?"); f.uid = o.uid; f.name = o.name; f.x = o.x; f.z = o.z; scene.add(f.p); toast(L(`✨ ${o.name} 來了`, `✨ ${o.name} is here`)); }
+      f.tx = o.x; f.tz = o.z; f.try = o.ry || 0; }
+    for (const u of Object.keys(together.others)) if (!seen.has(u)) { scene.remove(together.others[u].p); delete together.others[u]; } } });
+  function togetherFrame(t, dt) {
+    const n = together.niko; if (n) { const ry = av.rotation.y, tx = P.x + Math.cos(ry) * 0.9, tz = P.z - Math.sin(ry) * 0.9, dx = tx - n.x, dz = tz - n.z, d = Math.hypot(dx, dz);
+      if (d > 14) { n.x = tx; n.z = tz; } else if (d > 0.1) { const v = Math.min(d, Math.max(2, d * 2.2) * dt); const nx = n.x + dx / d * v, nz = n.z + dz / d * v; if (walkable(nx, nz)) { n.x = nx; n.z = nz; } else if (walkable(nx, n.z)) n.x = nx; else if (walkable(n.x, nz)) n.z = nz; n.ry = Math.atan2(dx, dz); }
+      n.moving = d > 0.1; n.p.position.set(n.x, 0, n.z); n.p.rotation.y = n.moving ? n.ry : ry; tickFigure(n, t);
+      n.say -= dt; if (n.say <= 0 && !cut) { n.say = 24 + Math.random() * 26; const ln = NLN[Math.floor(Math.random() * NLN.length)]; say(L(ln[1], ln[0]), "Niko", 6000); } }
+    for (const f of Object.values(together.others)) { const dx = f.tx - f.x, dz = f.tz - f.z, d = Math.hypot(dx, dz);
+      if (d > 12) { f.x = f.tx; f.z = f.tz; } else if (d > 0.02) { const v = Math.min(d, Math.max(2.4, d * 2.5) * dt); f.x += dx / d * v; f.z += dz / d * v; f.ry = Math.atan2(dx, dz); }
+      f.moving = d > 0.05; f.p.position.set(f.x, 0, f.z); f.p.rotation.y = f.moving ? f.ry : f.try; tickFigure(f, t); } }
+  { const hud = $(".hud"), snd = $("#snd"), mk = (txt, title, fn) => { const b = document.createElement("button"); b.className = "btn snd"; b.type = "button"; b.textContent = txt; b.title = title; b.onclick = (e) => { e.stopPropagation(); fn(); }; hud.insertBefore(b, snd); return b; };
+    if (tourOn) { const inv = invitePanel({ city: CITY, L, toast }); mk("👥", L("邀請朋友一起逛", "Invite a friend"), () => inv.open()); }
+    mk("🖼", L("合照小卡", "Photo card"), async () => { const names = [playerName(), ...(together.niko ? ["Niko"] : []), ...Object.values(together.others).map((f) => f.name)];
+      const card = await makeCard({ snap: () => window.__sleSnap && window.__sleSnap(), cityName: L("留白城", "Liubai"), names, palette: ["#ece4d4", "#1d1a18", "#c03a2b"], L });
+      if (!card) { toast(L("拍不到畫面，再試一次", "Couldn't capture the view — try again")); return; } audio.task();
+      cardPanel({ card, cityName: L("留白城", "Liubai"), mates: Object.values(together.others).map((f) => ({ uid: f.uid, name: f.name })), L, toast }); }); }
+
+  /* ---------- 今天要添哪一筆 ---------- */
+  const pick = (feed, r) => { const b = (feed && feed.b) || {}, have = new Set((FS.growState(CITY).slots || []).map((s) => strokeOf(s).k)), order = BUCKETS.slice().sort((x, y) => (b[y] || 0) - (b[x] || 0) || r() - 0.5);
+    const top = (b[order[0]] || 0) > 0 ? order[0] : null, d = Math.max(1, Math.min(3, ((feed && feed.recDays) || 0) >= 6 ? 3 : ((feed && feed.recDays) || 0) >= 2 ? 2 : 1));
+    const from = (bk) => { const c = BUCKET_STROKES[bk], fresh = c.filter((k) => !have.has(k)); const pool = fresh.length ? fresh : c; return pool[Math.floor(r() * pool.length)]; };
+    const a = from(top || order[Math.floor(r() * 6)]); let second = null; for (const bk of order.slice(top ? 1 : 0)) { if (bk === top) continue; const s2 = from(bk); if (s2 !== a && ((b[bk] || 0) > 0 || !second)) { second = s2; if ((b[bk] || 0) > 0) break; } }
+    if (!second || second === a) { const all = Object.keys(STROKE).filter((k) => k !== a); second = all[Math.floor(r() * all.length)]; }
+    return { offer: [`${a}@${d}`, `${second}@${d}`], top }; };
+  const panelInfo = (id) => { const S = STROKE[strokeOf(id).k], dd = strokeOf(id).d; return { icon: `<i class="inkch">${S.ch}</i>`, name: S.name, desc: [S.desc[0] + (dd === 3 ? "（濃墨）" : dd === 1 ? "（淡墨）" : ""), S.desc[1]] }; };
+  const showGrowth = () => { const n = strokes.length, c = $("#clock"); c.textContent = L(`${n} 筆`, `${n} stroke${n === 1 ? "" : "s"}`); c.title = L(`這幅畫已經添了 ${n} 筆`, `${n} strokes added to the painting`); };
+  let growUI = null;
+  function offerNow() { if (!FS || cut) return; const g = growStart({ city: CITY, map: pick, rnd }); placeSeals(g.state && g.state.visits); if (g.state) { moon.material.map = moonT(g.state.night); moon.material.needsUpdate = true; } if (!g.offer) { showGrowth(); return; }
+    const why = g.top ? L(WHY[g.top][0], WHY[g.top][1]) : L("硯台很安靜。今天這兩筆，是風送來的。", "The inkstone is quiet. Today's two strokes came on the wind.");
+    growUI = growPanel({ L, info: panelInfo, offer: g.offer, title: L("今天的留白，要添哪一筆？", "Which stroke for today's blank space?"), why,
+      onPick: (id) => { const r = FS.growChoose(CITY, id, SLOTS.length); growUI = null; if (!r) return; addNew(id, r); }, onLater: () => { growUI = null; toast(L("硯台裡的墨會等你。", "The ink will wait in the stone.")); } }); }
+  function addNew(id, r) { const S = STROKE[strokeOf(id).k];
+    if (r.slot >= 0) { const st = addStroke(r.slot, id, true); audio.stroke(); say(L(`「${S.name[0]}」——畫師添了一筆。`, `"${S.name[1]}" — the painter adds a stroke.`), L("硯翁", "Old Inkstone"), 6000); if (st) { cam.yaw = Math.atan2(P.x - st.x, P.z - st.z); cam.want = Math.max(cam.want, 20); } }
+    else { audio.stroke(); say(L(`「${S.name[0]}」的墨又深了一層。`, `The ink of "${S.name[1]}" deepens another shade.`), L("硯翁", "Old Inkstone"), 6000); }
+    showGrowth(); }
+
+  /* ---------- 紙紋：整個畫面蓋一層紙的纖維 ---------- */
+  { const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c = cv.getContext("2d"), r = rngOf(77); c.fillStyle = "#808080"; c.fillRect(0, 0, 256, 256); for (let k = 0; k < 9000; k++) { const v = 110 + r() * 40; c.fillStyle = `rgba(${v},${v},${v},.5)`; c.fillRect(r() * 256, r() * 256, 1 + r() * 2, 1); }
+    for (let k = 0; k < 220; k++) { c.strokeStyle = `rgba(90,86,80,${0.15 + r() * 0.2})`; c.lineWidth = 0.6; c.beginPath(); const x = r() * 256, y = r() * 256; c.moveTo(x, y); c.quadraticCurveTo(x + r() * 20, y + r() * 6, x + 10 + r() * 30, y + (r() - 0.5) * 8); c.stroke(); }
+    const ov = document.createElement("div"); ov.className = "paper"; ov.style.backgroundImage = `url(${cv.toDataURL()})`; document.body.append(ov); const vg = document.createElement("div"); vg.className = "vig"; document.body.append(vg); }
+
+  /* ---------- 操作：點地面走、拖曳轉視角、滾輪／雙指縮放 ---------- */
+  const ray = new THREE.Raycaster(), ptr = new Map(), _h = new V3(), _sp = new V3(), _nd = new THREE.Vector2(), groundPl = new THREE.Plane(new V3(0, 1, 0), 0); let drag = null, pinch = 0;
+  const el = renderer.domElement;
+  function groundHit() { return ray.ray.intersectPlane(groundPl, _h) ? _h.clone() : null; }
+  function nearPick(cx0, cy0) { let best = null, bd = Math.max(42, Math.min(innerWidth, innerHeight) * 0.09);
+    for (const m of pickables) { if (!m.parent || m.parent.visible === false) continue; const u = m.userData; if (u.kind === "fix") continue; m.getWorldPosition(_sp); if (_sp.distanceTo(camera.position) > 45) continue; _sp.project(camera); if (_sp.z > 1) continue;
+      const d = Math.hypot((_sp.x + 1) / 2 * innerWidth - cx0, (1 - _sp.y) / 2 * innerHeight - cy0); if (d < bd) { bd = d; best = m; } } return best; }
+  function tap(cx0, cy0) { if (cut || growUI) return; _nd.set(cx0 / innerWidth * 2 - 1, -(cy0 / innerHeight) * 2 + 1); ray.setFromCamera(_nd, camera); const gh = groundHit(), gd = gh ? gh.distanceTo(camera.position) : Infinity;
+    const hit = ray.intersectObjects(pickables, false).find((h) => h.object.parent && h.object.parent.visible !== false && h.distance < gd + 2); const obj = hit ? hit.object : nearPick(cx0, cy0);
+    if (obj) { const u = obj.userData;
+      if (u.kind === "fix") { fixTap(u.ref); return; }
+      if (u.kind === "cx") { if (cx.tap(u.ref, [P.x, P.z]) === "far") { const p = cx.pos(u.ref); goNear(p.x, p.z, 1.4); } return; }
+      if (u.kind === "mg") { if (mg.tap(u.ref, [P.x, P.z]) === "far") { const p = mg.pos(u.ref); goNear(p.x, p.z, 1.6); } return; }
+      if (u.kind === "folk") { const f = folks[u.ref]; if (Math.hypot(P.x - f.x, P.z - f.z) < 9) { talk(f, performance.now() / 1000); return; } goNear(f.x, f.z, 1.6); return; }
+      if (u.kind === "ev") { const e = evs[u.ref]; if (e.state !== "wait") return; if (e.kind === "lamp") { if (Math.hypot(P.x - e.x, P.z - e.z) < 3.5) { finish(e); return; } goNear(e.x, e.z, 1.8); return; } goNear(e.x, e.z, 0); return; } }
+    if (!gh || !walkable(gh.x, gh.z)) { if (gh && !bridgeOn && gh.x > streamX(gh.z) - 2.5 && Math.hypot(gh.x, gh.z) < LAND) toast(L("石拱橋的墨淡了，過不去。", "The stone bridge has faded — you can't cross yet.")); return; }
+    fixGo = null; P.stuck = 0; P.tx = gh.x; P.tz = gh.z; markAt(gh.x, gh.z); }
+  function goNear(x, z, off) { const dx = P.x - x, dz = P.z - z, d = Math.hypot(dx, dz) || 1; let tx = x + dx / d * off, tz = z + dz / d * off; if (!walkable(tx, tz)) { tx = x; tz = z; } if (!walkable(tx, tz)) return;
+    fixGo = null; P.stuck = 0; P.tx = tx; P.tz = tz; markAt(tx, tz); }
+  const endPtr = (e) => { if (!ptr.has(e.pointerId)) return; ptr.delete(e.pointerId); if (drag && !drag.turning && e.type === "pointerup") tap(e.clientX, e.clientY); if (ptr.size === 0) { drag = null; pinch = 0; } };
+  el.addEventListener("pointerdown", (e) => { if (e.isPrimary) { ptr.clear(); pinch = 0; drag = null; } try { el.setPointerCapture(e.pointerId); } catch (er) { }
+    ptr.set(e.pointerId, [e.clientX, e.clientY]); if (ptr.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0, turning: false }; else if (ptr.size === 2) { const p = [...ptr.values()]; pinch = Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]); drag = null; } });
+  el.addEventListener("pointermove", (e) => { if (!ptr.has(e.pointerId)) return; const prev = ptr.get(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]);
+    if (ptr.size === 2) { const p = [...ptr.values()], d = Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]); if (pinch) cam.want = Math.max(4, Math.min(70, cam.want * pinch / d)); pinch = d; return; }
+    if (!drag) return; const dx = e.clientX - prev[0], dy = e.clientY - prev[1]; drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x, e.clientY - drag.y));
+    if (drag.moved > 16) { drag.turning = true; cam.yaw -= dx * 0.0045; cam.pitch = Math.max(-1.1, Math.min(1.35, cam.pitch + dy * 0.004)); } });
+  el.addEventListener("pointerup", endPtr); el.addEventListener("pointercancel", endPtr); el.addEventListener("lostpointercapture", endPtr);
+  el.addEventListener("wheel", (e) => { e.preventDefault(); cam.want = Math.max(4, Math.min(70, cam.want * (e.deltaY > 0 ? 1.12 : 0.89))); }, { passive: false });
+  const normalFov = () => innerWidth / innerHeight < 0.8 ? 62 : 50;
+  function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; if (!cut) camera.fov = normalFov(); camera.updateProjectionMatrix(); }
+
+  /* ---------- 過場：穿過星門，從霧的上方慢慢落進畫裡 ---------- */
+  const _ca = new V3(), _cb = new V3(), CUT_FROM = new V3(-40, 90, -160);
+  function endCut() { if (!cut) return; cut = null; camera.fov = normalFov(); camera.updateProjectionMatrix(); $("#gate").hidden = true; document.body.classList.remove("cutting"); const h = $("#hint"); h.classList.remove("off"); setTimeout(() => h.classList.add("off"), 12000); setTimeout(offerNow, 1200); }
+  function runCut(dt, fpos, flook) { cut.t += dt; const T = cut.t;
+    if (cut.ph === "wait") { const a = T * 0.04 + 0.6; camera.position.set(Math.cos(a) * 90, 40 + Math.sin(T * 0.07) * 5, Math.sin(a) * 90); camera.lookAt(0, 4, 0); return; }
+    const k = ease(T / 5.5); _ca.copy(CUT_FROM).lerp(fpos, k); _ca.y += Math.sin(k * Math.PI) * 10; camera.position.copy(_ca); _cb.set(-260, 150, -620).lerp(flook, k); camera.lookAt(_cb); if (T >= 5.5) endCut(); }
+  if (cut) { $("#gate").hidden = false; document.body.classList.add("cutting"); $("#hint").classList.add("off");
+    $("#gGo").textContent = L("🌀 穿過星門", "🌀 Through the star gate"); $("#gSub").textContent = L("訊號從一幅沒畫完的畫裡傳來。", "The signal comes from inside an unfinished painting."); $("#gTitle").textContent = L("留白城", "LIUBAI"); $("#gSkip").textContent = L("略過 ›", "Skip ›");
+    $("#gGo").onclick = (e) => { e.stopPropagation(); audio.gesture(); audio.fall(); cut.ph = "run"; cut.t = 0; $("#gate").classList.add("running"); };
+    $("#gSkip").onclick = (e) => { e.stopPropagation(); audio.gesture(); endCut(); }; }
+  else setTimeout(offerNow, 900);
+  addEventListener("resize", resize); resize();
+
+  $("#place").textContent = L("留白城", "Liubai"); showGrowth();
+  $("#hint").textContent = L("點地面走過去 · 拖曳轉視角 · 每天可以替這幅畫添一筆 · 朱紅的「修」是壞掉的地方", "Tap the ground to walk · drag to turn · add one stroke to the painting each day · the red 修 seal marks something broken");
+  if (!cut) setTimeout(() => $("#hint").classList.add("off"), 14000);
+  window.__sleSnap = () => { try { renderer.render(scene, camera); const c = renderer.domElement; return { url: c.toDataURL("image/jpeg", 0.9), w: c.width, h: c.height, place: $("#place") ? $("#place").textContent : "" }; } catch (e) { return null; } };
+  $("#loading").remove(); sndLabel(); $("#snd").onclick = (e) => { e.stopPropagation(); audio.toggle(); sndLabel(); toast(audio.on ? L("♪ 聲音打開了", "♪ Sound on") : L("聲音關掉了", "Sound off"), 1800); };
+  const perf = { n: 0, sum: 0, max: 0 };
+  if (QS.has("dbg")) window.__ink = { P, cam, strokes: () => strokes.map((s) => ({ i: s.i, id: s.id, rev: !!s.rev })), ev: () => evs.map((e) => ({ i: e.i, kind: e.kind, x: +e.x.toFixed(1), z: +e.z.toFixed(1), state: e.state })),
+    go: (x, z) => { P.x = x; P.z = z; P.tx = P.tz = null; return [x, z, walkable(x, z)]; }, finish: (i) => { finish(evs[i]); return evs[i].state; }, offer: () => { offerNow(); return !!growUI; },
+    paintAll: (d = 2) => { Object.keys(STROKE).forEach((k, i) => { if (!strokes.some((s) => s.i === i)) addStroke(i, `${k}@${d}`, false); }); showGrowth(); return strokes.length; },
+    fix: () => Object.values(fixSites).map((S) => ({ id: S.id, k: +S.kt.toFixed(2), done: S.done })), fixAt: (id, off = 4.4) => { const S = fixSites[id]; P.x = S.x - off; P.z = S.z; P.tx = P.tz = null; return [S.x, S.z]; }, fixTap: (id) => { fixTap(id); return fixes.isOpen; },
+    poster: (id) => { makePoster(id); return 1; }, story: () => { tellStory(true); return 1; }, tap, walkable,
+    perf: () => ({ avgMs: perf.n ? +(perf.sum / perf.n).toFixed(2) : 0, maxMs: +perf.max.toFixed(1), n: perf.n, calls: renderer.info.render.calls, tris: renderer.info.render.triangles }), resetPerf: () => { perf.n = perf.sum = perf.max = 0; return 1; }, cut: () => cut && cut.ph };
+
+  /* ---------- 每一格 ---------- */
+  const windAt = (t) => Math.pow(0.5 + 0.5 * Math.sin(t / WIND_T * Math.PI * 2), 3);
+  let last = performance.now(); const _p = new V3(), _q = new V3(), _look = new V3();
+  function frame(now) { requestAnimationFrame(frame); const raw = Math.min(0.25, (now - last) / 1000), dt = Math.min(0.05, raw), t = now / 1000; last = now; const f0 = performance.now();
+    let moving = 0; const px0 = P.x, pz0 = P.z;
+    if (!cut && P.tx !== null) { const dx = P.tx - P.x, dz = P.tz - P.z, d = Math.hypot(dx, dz);
+      if (d < 0.25) { P.tx = P.tz = null; } else { const v = Math.min(d, 6 * dt); let nx = P.x + dx / d * v, nz = P.z + dz / d * v;
+        for (const o of obstacles) { if (!(o.r > 0)) continue; const ox = nx - o.x, oz = nz - o.z, od = Math.hypot(ox, oz); if (od < o.r) { const k = (o.r - od) / (od || 1); nx += ox * k; nz += oz * k; } }
+        if (walkable(nx, nz)) { P.x = nx; P.z = nz; } else if (walkable(nx, P.z)) P.x = nx; else if (walkable(P.x, nz)) P.z = nz;
+        av.rotation.y = Math.atan2(dx, dz); moving = 1; } }
+    if (P.tx !== null) { P.stuck = Math.hypot(P.x - px0, P.z - pz0) < 6 * dt * 0.2 ? (P.stuck || 0) + dt : 0; if (P.stuck > 0.35) { P.tx = P.tz = null; P.stuck = 0; fixGo = null; moving = 0; } }
+    me.position.set(P.x, 0, P.z); animatePerson(av, t, moving ? 2 : 0); nameTag.userData.tick(t); mark.material.opacity = Math.max(0, mark.material.opacity - dt * 0.6);
+    const wind = windAt(t); audio.breeze(wind); waterT.offset.y = -(t * 0.05) % 1;
+    for (const m of mist) { m.a += m.v * dt; m.s.position.x = Math.cos(m.a) * m.d; m.s.position.z = Math.sin(m.a) * m.d; }
+    /* 添上去的筆：墨慢慢滲開；各自的小動作 */
+    for (const s of strokes) {
+      if (s.rev) { s.rev.t += dt; const k = ease(Math.min(1, s.rev.t / 3.2)); s.mats.forEach(([m, op]) => { m.opacity = op * k; }); if (s.blot) { s.blot.scale.setScalar(2 + k * 14); s.blot.material.opacity = 0.9 * (1 - k); }
+        if (k >= 1) { s.rev = null; s.mats.forEach(([m, op]) => { m.opacity = op; if (op >= 1) m.transparent = false; }); s.wobs.forEach((o) => tog(o, true)); if (s.blot) { scene.remove(s.blot); s.blot = null; } unstick(); } }
+      const u = s.g.userData;
+      if (u.smoke) u.smoke.forEach((q) => { const k = (t * 0.12 + q.ph) % 1; q.s.position.set(0.8 + Math.sin(k * 6) * 0.4 + wind * k, 3.3 + k * 6, 0); q.s.material.opacity = 0.35 * (1 - k); q.s.scale.setScalar(1 + k * 3); });
+      if (u.boat) { u.boat.position.y = 0.25 + Math.sin(t * 0.9) * 0.06; u.boat.rotation.y = Math.sin(t * 0.2) * 0.5; }
+      if (u.cranes) u.cranes.forEach((q) => { q.a += q.v * dt; q.s.position.set(Math.cos(q.a) * q.rr, q.h + Math.sin(t + q.a) * 0.6, Math.sin(q.a) * q.rr); q.s.material.rotation = Math.sin(t * 3 + q.a) * 0.15; });
+      if (u.kites) u.kites.forEach((q) => { const x = Math.cos(q.a + t * 0.1) * q.rr, y = q.h + Math.sin(t * 0.7 + q.a) * 0.8 + wind, z = Math.sin(q.a + t * 0.1) * q.rr; q.s.position.set(x, y, z); q.s.material.rotation = Math.sin(t * 1.3 + q.a) * 0.3; q.ln.geometry.setFromPoints([new V3(0, 1.4, 0), new V3(x, y - 0.6, z)]); }); }
+    for (const f of folks) { f.p.position.y = Math.sin(t * 1.3 + f.ph) * 0.02; if (f.face > 0) { f.face -= dt; const want = Math.atan2(P.x - f.x, P.z - f.z); let dy = want - f.p.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); f.p.rotation.y += dy * Math.min(1, dt * 4); } }
+    for (const e of evs) {
+      if (e.state === "wait") { if (e.kind === "moth") { const a = e.a0 + t * e.w; e.x = Math.cos(a) * e.r; e.z = Math.sin(a) * e.r; e.g.position.set(e.x, 1.4 + Math.sin(t * 2.3 + e.ph) * 0.5, e.z); e.m.scale.set(1.1 * (0.6 + Math.abs(Math.sin(t * 9 + e.ph)) * 0.4), 1.1, 1);
+          if (!cut && Math.hypot(P.x - e.x, P.z - e.z) < 1.9) finish(e); } }
+      else if (e.state === "go") { e.t += dt; const k = Math.min(1, e.t / 3);
+        if (e.kind === "lamp") { e.gl.material.opacity = 0.6 * k; if (k > 0.2 && !e.lit) { e.lit = true; e.box.material = new THREE.MeshBasicMaterial({ color: "#ffd8a8" }); } }
+        else { e.g.position.y += dt * (1.5 + k * 6); e.m.material.opacity = 0.95 * (1 - k); }
+        if (k >= 1) { e.state = "done"; if (e.kind !== "lamp") e.g.visible = false; } } }
+    if (!cut) fixFrame(t, dt); togetherFrame(t, dt); cx.tick(t); mg.tick(t);
+    /* 鏡頭 */
+    cam.dist += (cam.want - cam.dist) * Math.min(1, dt * 1.6);
+    const base = _q.set(P.x, 1.6, P.z), pit = Math.max(0.06, cam.pitch), lift = Math.max(0, 0.06 - cam.pitch), cp = Math.cos(pit); let D = cam.dist;
+    for (let tries = 0; tries < 7; tries++) { _p.set(base.x + Math.sin(cam.yaw) * cp * D, base.y + Math.sin(pit) * D, base.z + Math.cos(cam.yaw) * cp * D); let inside = false;
+      const ns = Math.max(6, Math.ceil(D / 1.5)); for (let k = 1; k <= ns && !inside; k++) { const f = k / ns, qx = base.x + (_p.x - base.x) * f, qy = base.y + (_p.y - base.y) * f, qz = base.z + (_p.z - base.z) * f;
+        for (const o of obstacles) if (o.r > 0 && qy < o.h + 0.6 && Math.hypot(qx - o.x, qz - o.z) < o.r + 0.5) { inside = true; break; } }
+      if (!inside || D < 1.5) break; D *= 0.78; }
+    if (_p.y < 0.6) _p.y = 0.6;
+    _look.copy(base); _look.y += lift * 3.2 * D;
+    if (cut) runCut(raw, _p, _look); else { camera.position.copy(_p); camera.lookAt(_look); }
+    renderer.render(scene, camera);
+    const ms = performance.now() - f0; if (!cut) { perf.n++; perf.sum += ms; if (ms > perf.max) perf.max = ms; } }
+  requestAnimationFrame(frame);
+})();

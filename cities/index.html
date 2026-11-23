@@ -3,42 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2a1834">
+<meta name="theme-color" content="#ece4d4">
 <title>星際城市試玩</title>
 <style>
-  :root { --bg: #2a1834; --card: rgba(255, 236, 214, .08); --line: rgba(255, 216, 144, .35); --fg: #fff4e8; --mute: #e8cbb4; --acc: #ffd890; }
+  :root { --bg: #ece4d4; --card: rgba(255, 252, 244, .6); --line: rgba(40, 34, 30, .25); --fg: #1d1a18; --mute: #5a5048; --acc: #1d1a18; --seal: #c03a2b; }
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; background: radial-gradient(120% 70% at 50% 0%, #a8587a 0%, #5a2e5a 38%, var(--bg) 75%); color: var(--fg); font: 15px/1.6 system-ui, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--fg); font: 15px/1.7 "Noto Serif TC", "Microsoft JhengHei", serif;
     padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   main { max-width: 480px; margin: 0 auto; display: grid; gap: 16px; }
   h1 { margin: 8px 0 0; font-size: 24px; letter-spacing: .04em; }
   p { margin: 0; color: var(--mute); }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 10px; }
-  h2 { margin: 0; font-size: 15px; color: var(--acc); }
+  h2 { margin: 0; font-size: 15px; color: var(--seal); letter-spacing: .1em; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; }
-  button, a.go { font: inherit; color: var(--fg); background: rgba(255, 255, 255, .08); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer; text-decoration: none; }
-  button.on { background: var(--acc); color: #3a2010; border-color: var(--acc); }
-  a.go { display: block; text-align: center; background: var(--acc); color: #3a2010; font-weight: 700; padding: 13px; border-radius: 14px; }
+  button, a.go { font: inherit; color: var(--fg); background: rgba(255, 255, 255, .5); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer; text-decoration: none; }
+  button.on { background: var(--acc); color: #f4ede0; border-color: var(--acc); }
+  a.go { display: block; text-align: center; background: var(--acc); color: #f4ede0; font-weight: 700; padding: 13px; border-radius: 14px; }
   #st { font-size: 13px; }
   small { color: var(--mute); }
 </style>
 </head>
 <body>
 <main>
-  <h1>🏮 星際城市試玩</h1>
-  <p>第六座「浮燈渡」的預覽。沒有伺服器，存檔只在這支手機的瀏覽器裡。</p>
+  <h1>星際城市試玩</h1>
+  <p>第六座「留白城」的預覽：一幅沒畫完的水墨畫，每天可以替它添一筆。沒有伺服器，存檔只在這支手機的瀏覽器裡。</p>
   <section>
     <h2>① 選一種生活（可以不選）</h2>
-    <p>城市會看玩家最近怎麼過日子，長出不一樣的東西。選一種試試看，再進城。</p>
+    <p>城市會看玩家最近怎麼過日子，給你不一樣的兩筆可以選、墨也有濃有淡。選一種試試看，再進城。</p>
     <div class="row" id="life">
       <button data-k="food">常吃外食</button><button data-k="move">常出門</button><button data-k="home">常待在家</button>
       <button data-k="save">常存錢</button><button data-k="learn">常讀書</button><button data-k="play">常玩</button><button data-k="mix">什麼都有一點</button>
     </div>
   </section>
-  <a class="go" href="city6/index.html">進入浮燈渡 ›</a>
+  <a class="go" href="city6/index.html">進入留白城 ›</a>
   <section>
     <h2>② 看它長大</h2>
-    <p>每天第一次進城會漂來兩座浮島。不想等一天，就按這個，再進城一次。</p>
+    <p>每天第一次進城，畫師會問你要添哪一筆。不想等一天，就按這個，再進城一次。</p>
     <div class="row"><button id="tom">🌙 跳到明天</button><button id="rst">↺ 全部重來</button></div>
     <small id="st"></small>
   </section>
@@ -46,7 +46,7 @@
 </main>
 <script src="demo.js"></script>
 <script>
-  const st = document.getElementById("st"), show = () => { const i = StarDemo.info(); st.textContent = `目前：浮島 ${i.isles} 座・修好 ${i.fixed} / 3${i.life ? "" : ""}`;
+  const st = document.getElementById("st"), show = () => { const i = StarDemo.info(); st.textContent = `目前：添了 ${i.isles} 筆・修好 ${i.fixed} / 3`;
     document.querySelectorAll("#life button").forEach((b) => b.classList.toggle("on", b.dataset.k === i.life)); };
   document.querySelectorAll("#life button").forEach((b) => b.onclick = () => { StarDemo.life(b.dataset.k); show(); });
   document.getElementById("tom").onclick = () => { StarDemo.tomorrow(); st.textContent = "好了，進城就是新的一天。"; setTimeout(show, 1600); };

@@ -20,7 +20,7 @@ export function growStart({ city, map, rnd = Math.random, hour = new Date().getH
   const FS = window.FinSave && window.FinSave.ok && window.FinSave.ok() ? window.FinSave : null;
   if (!FS || !FS.growState) return { state: null, offer: null, top: null };
   let st = FS.growState(city), top = null;
-  if (!st.pend) { const f = FS.feed ? FS.feed(st.last) : null, o = growOffer(f, map, rnd); top = o.top; st = FS.growVisit(city, hour, o.offer) || st; }
+  if (!st.pend) { const f = FS.feed ? FS.feed(st.last) : null, o = typeof map === "function" ? map(f, rnd) : growOffer(f, map, rnd);   /* map 也可以是城市自己的挑選規則 (feed, rnd) => { offer, top } */ top = o.top; st = FS.growVisit(city, hour, o.offer) || st; }
   else st = FS.growVisit(city, hour, null) || st;
   return { state: st, offer: st.pend ? st.pend.o : null, top, FS };
 }
@@ -29,7 +29,7 @@ export function growStart({ city, map, rnd = Math.random, hour = new Date().getH
 export function growPanel({ L, info, offer, title, why, onPick, onLater }) {
   const box = document.createElement("div"); box.className = "growp"; box.setAttribute("role", "dialog");
   box.addEventListener("pointerdown", (e) => e.stopPropagation()); box.addEventListener("pointerup", (e) => e.stopPropagation());
-  const card = (t) => { const I = info[t]; return `<button class="gopt" type="button" data-t="${t}"><span class="gic">${I.icon}</span><b>${L(I.name[0], I.name[1])}</b><small>${L(I.desc[0], I.desc[1])}</small></button>`; };
+  const card = (t) => { const I = typeof info === "function" ? info(t) : info[t]; return `<button class="gopt" type="button" data-t="${t}"><span class="gic">${I.icon}</span><b>${L(I.name[0], I.name[1])}</b><small>${L(I.desc[0], I.desc[1])}</small></button>`; };
   box.innerHTML = `<b class="gtt">${title}</b>${why ? `<p class="gwhy">${why}</p>` : ""}<div class="gopts">${offer.map(card).join("")}</div><button class="btn glater" type="button">${L("等一下再決定", "Decide later")}</button>`;
   document.body.append(box); requestAnimationFrame(() => box.classList.add("on"));
   const close = () => { box.classList.remove("on"); setTimeout(() => box.remove(), 300); };

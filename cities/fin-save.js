@@ -35,10 +35,10 @@
     still: [{ id: "sundial", need: { sand: 6, ess: 1 }, b: 6, ore: 0 }, { id: "column", need: { sand: 10, lux: 3, gem: 1 }, b: 8, ore: 1 }, { id: "pendulum", need: { sand: 16, lux: 5, ess: 3 }, b: 12, ore: 2 }],
     harbor: [{ id: "lens", need: { pearl: 6, ess: 1 }, b: 6, ore: 0 }, { id: "pier", need: { pearl: 10, lux: 3, gem: 1 }, b: 8, ore: 1 }, { id: "organ", need: { pearl: 16, sand: 5, ess: 3 }, b: 12, ore: 2 }],   // FIN-U213 潮光港
     grove: [{ id: "tree", need: { moss: 6, ess: 1 }, b: 6, ore: 0 }, { id: "wheel", need: { moss: 10, pearl: 3, gem: 1 }, b: 8, ore: 1 }, { id: "arch", need: { moss: 16, lux: 4, sand: 3, ess: 3 }, b: 12, ore: 2 }],
-    ferry: [{ id: "beacon", need: { glim: 6, ess: 1 }, b: 6, ore: 0 }, { id: "chain", need: { glim: 10, moss: 3, gem: 1 }, b: 8, ore: 1 }, { id: "boat", need: { glim: 16, pearl: 4, sand: 3, ess: 3 }, b: 12, ore: 2 }] };   // 2026-11-23 第六座：浮燈渡   // FIN-U217 螢苔林
+    liubai: [{ id: "plaque", need: { ink: 6, ess: 1 }, b: 6, ore: 0 }, { id: "bridge", need: { ink: 10, moss: 3, gem: 1 }, b: 8, ore: 1 }, { id: "fall", need: { ink: 16, pearl: 4, sand: 3, ess: 3 }, b: 12, ore: 2 }] };   // 2026-11-23 第六座：留白城   // FIN-U217 螢苔林
   var FIX_ALL = { b: 10, ore: 1 };
-  var STAR_MAT = { ferry: "glim" };   // 第六座以後：每座城自己的材料
-  function mats(s) { var m = s.mats = s.mats || {}; ["lux", "sand", "pearl", "moss", "glim"].forEach(function (k) { m[k] = m[k] || { in: 0, out: 0 }; }); return m; }
+  var STAR_MAT = { liubai: "ink" };   // 第六座以後：每座城自己的材料
+  function mats(s) { var m = s.mats = s.mats || {}; ["lux", "sand", "pearl", "moss", "ink"].forEach(function (k) { m[k] = m[k] || { in: 0, out: 0 }; }); return m; }
   function gainMat(s, k, n) { mats(s)[k].in += n; return n; }
   function dupGems(s) { var g = s.gems || {}, n = 0; Object.keys(g).forEach(function (k) { n += Math.max(0, (g[k] | 0) - 1); }); return n; }
   function have(s, k) { if (k === "ess") return (s.essence && s.essence.n) || 0; if (k === "gem") return dupGems(s); var m = mats(s)[k]; return Math.max(0, m.in - m.out); }
@@ -129,17 +129,17 @@
     // 2026-11-21 每座城市多一件每天的小事（三個發光的東西都點亮）：s.cityx = { d: 今天, done: [今天完成的城市], n: 總共完成幾次 }
     //   獎勵：2 B＋那座城的材料 1 份（奧蕾莉亞沒有材料：3 B）；三成機會再 1 滴元液
     cityxState: function (city) { var s = read(), d = today(), X = (s && s.cityx) || {}; return { ok: !!s, done: X.d === d && (X.done || []).indexOf(city) >= 0, n: X.n || 0 }; },
-    cityxDo: function (city) { var s = read(); if (!s) return null; var C = { halo: "lux", still: "sand", harbor: "pearl", grove: "moss", ferry: "glim", aurelia: "" }; if (!Object.prototype.hasOwnProperty.call(C, city)) return null;
+    cityxDo: function (city) { var s = read(); if (!s) return null; var C = { halo: "lux", still: "sand", harbor: "pearl", grove: "moss", liubai: "ink", aurelia: "" }; if (!Object.prototype.hasOwnProperty.call(C, city)) return null;
       var d = today(), X = s.cityx || {}; if (X.d !== d) { X.d = d; X.done = []; } X.done = X.done || []; if (X.done.indexOf(city) >= 0) return null; X.done.push(city); X.n = (X.n || 0) + 1;
       var m = C[city], b = m ? 2 : 3; bloom(s, b, "cityx:" + city); var out = { b: b, mat: m, matN: m ? gainMat(s, m, 1) : 0, ess: 0 }; if (Math.random() < 0.3) out.ess = addEss(s, 1, "cityx:" + city);
       s.cityx = X; write(s); return out; },
     // 2026-11-21 星際城市的小遊戲：每個遊戲每天一次獎勵；s.cgames = { d, done: ["城市:遊戲"…], best: { "城市:遊戲": 最高分 }, n }
     cgameState: function (key) { var s = read(), d = today(), X = (s && s.cgames) || {}; return { ok: !!s, done: X.d === d && (X.done || []).indexOf(key) >= 0, best: (X.best || {})[key] || 0, n: X.n || 0 }; },
-    cgameDo: function (city, game, score, pass) { var s = read(); if (!s) return null; var C = { halo: "lux", still: "sand", harbor: "pearl", grove: "moss", ferry: "glim", aurelia: "" }; if (!Object.prototype.hasOwnProperty.call(C, city)) return null;
+    cgameDo: function (city, game, score, pass) { var s = read(); if (!s) return null; var C = { halo: "lux", still: "sand", harbor: "pearl", grove: "moss", liubai: "ink", aurelia: "" }; if (!Object.prototype.hasOwnProperty.call(C, city)) return null;
       var key = city + ":" + String(game).slice(0, 20), d = today(), X = s.cgames || {}; X.best = X.best || {}; var best = false; score = Math.max(0, Math.min(99, Math.floor(Number(score) || 0))); if (score > (X.best[key] || 0)) { X.best[key] = score; best = true; }
       if (X.d !== d) { X.d = d; X.done = []; } X.done = X.done || []; var out = { b: 0, matN: 0, ess: 0, best: best, again: false, matZh: "", matEn: "" };
       if (X.done.indexOf(key) >= 0) { out.again = true; s.cgames = X; write(s); return out; }
-      X.done.push(key); X.n = (X.n || 0) + 1; var m = C[city], NM = { lux: ["曦晶", "halo crystal"], sand: ["時砂", "time sand"], pearl: ["潮珠", "tide pearl"], moss: ["苔光", "moss light"], glim: ["燈芯", "lantern wick"] };
+      X.done.push(key); X.n = (X.n || 0) + 1; var m = C[city], NM = { lux: ["曦晶", "halo crystal"], sand: ["時砂", "time sand"], pearl: ["潮珠", "tide pearl"], moss: ["苔光", "moss light"], ink: ["松煙墨", "pine-soot ink"] };
       out.b = pass ? (m ? 2 : 3) : 1; bloom(s, out.b, "cgame:" + key); if (pass && m) { out.matN = gainMat(s, m, 1); out.matZh = NM[m][0]; out.matEn = NM[m][1]; } if (pass && Math.random() < 0.15) out.ess = addEss(s, 1, "cgame:" + key);
       s.cgames = X; write(s); return out; },
     // FIN-U213 星際城市修好一處就送一張海報（城市自己拍一張 JPEG）；存在 s.city_posters["城市:地點"]，最多 24 張（舊的先拿掉）
@@ -150,7 +150,7 @@
     cityPosters: function (city) { var s = read(), P = (s && s.city_posters) || {}; return Object.keys(P).filter(function (k) { return !city || P[k].city === city; }).map(function (k) { return P[k]; }); },
     // FIN-U185 修補：fixState(city) 給城市畫面用（材料、每一處放了多少、修好沒）；fixPut 把手上有的材料放進去
     fixState: function (city) { var s = read(), list = FIX[city] || []; if (!s) return { ok: false, have: {}, sites: list.map(function (f) { return { id: f.id, need: f.need, put: {}, done: false, k: 0 }; }) };
-      var c = fixOf(s, city), H = { lux: have(s, "lux"), sand: have(s, "sand"), pearl: have(s, "pearl"), moss: have(s, "moss"), glim: have(s, "glim"), ess: have(s, "ess"), gem: have(s, "gem") };
+      var c = fixOf(s, city), H = { lux: have(s, "lux"), sand: have(s, "sand"), pearl: have(s, "pearl"), moss: have(s, "moss"), ink: have(s, "ink"), ess: have(s, "ess"), gem: have(s, "gem") };
       return { ok: true, have: H, all: !!c.all, sites: list.map(function (f) { var p = c.put[f.id] || {}, tot = 0, got = 0; Object.keys(f.need).forEach(function (k) { tot += f.need[k]; got += Math.min(f.need[k], p[k] || 0); });
         return { id: f.id, need: f.need, put: p, done: c.done.indexOf(f.id) >= 0, k: c.done.indexOf(f.id) >= 0 ? 1 : got / tot }; }) }; },
     fixPut: function (city, id) { var s = read(), f = (FIX[city] || []).filter(function (x) { return x.id === id; })[0]; if (!s || !f) return null; var c = fixOf(s, city); if (c.done.indexOf(id) >= 0) return { done: true, gave: {} };

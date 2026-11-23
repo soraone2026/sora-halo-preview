@@ -1,0 +1,55 @@
+/* 留白城（2026-11-23）：版面沿用曦環城的 halo.css，這裡換成紙與墨：宣紙色的底、墨色的字、朱紅的印。
+ * 「添一筆」的選擇面板和故事卡（第六座以後共用的結構，見 /city/grow.js）也在這裡換成水墨的樣子。 */
+html, body { background: #ece4d4; }
+.card { background: rgba(244, 238, 226, .82); border-color: rgba(40, 34, 30, .35); color: #1d1a18; }
+.card strong { color: #1d1a18; font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif; letter-spacing: .12em; }
+.btn { background: rgba(244, 238, 226, .82); border-color: rgba(40, 34, 30, .35); color: #1d1a18; }
+.muted { color: #5a5048; }
+.snd, .echo { color: #1d1a18; }
+.btn.seal { background: #c03a2b; border-color: #c03a2b; color: #f4ede0; font-family: 'Noto Serif TC', serif; font-weight: 700; }
+.echo { font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif; }
+.echo.full { color: #c03a2b; border-color: rgba(192, 58, 43, .7); }
+.say { background: rgba(244, 238, 226, .94); border-color: rgba(40, 34, 30, .4); color: #1d1a18; font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif; }
+.say small { color: #7a6a5a; }
+.hint { background: rgba(244, 238, 226, .8); color: #2a2622; }
+.toast { background: rgba(244, 238, 226, .96); border-color: rgba(40, 34, 30, .4); color: #1d1a18; }
+.loading { color: #5a5048; }
+.gate { background: linear-gradient(to top, rgba(236, 228, 212, .95), rgba(236, 228, 212, 0) 58%); }
+.gate .gbox small { color: #7a6a5a; }
+.gate .gbox b { color: #1d1a18; text-shadow: none; font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif; letter-spacing: .3em; }
+.btn.primary { background: #1d1a18; border-color: #1d1a18; color: #f4ede0; box-shadow: 0 6px 18px rgba(0, 0, 0, .2); }
+.flash { background: #f4ede0; }
+/* 紙紋＋邊緣的暈：蓋在 3D 上面，不擋點擊 */
+.paper { position: fixed; inset: 0; z-index: 2; pointer-events: none; mix-blend-mode: multiply; opacity: .32; background-size: 256px 256px; }
+.vig { position: fixed; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(120% 95% at 50% 45%, rgba(0, 0, 0, 0) 60%, rgba(60, 48, 36, .22) 100%); }
+.hud, .hint, .say, .toast, .gate, .growp, .fixp, .posterov, .storyov { z-index: 50; }
+/* 修好送的紀念 */
+.posterov { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(40, 34, 30, .45); padding: 16px; }
+.posterov .pcard { width: min(320px, 86vw); background: #f4ede0; border: 1px solid rgba(40, 34, 30, .3); border-radius: 6px; padding: 14px; text-align: center; color: #1d1a18; display: grid; gap: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, .3); }
+.posterov .pcard small { color: #7a6a5a; letter-spacing: .1em; }
+.posterov img { width: 100%; height: auto; border-radius: 2px; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
+.posterov p { margin: 0; font-size: 14px; color: #4a4038; }
+/* 今天的留白，要添哪一筆 */
+.growp { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); transform: translate(-50%, 140%); transition: transform .5s cubic-bezier(.2, .9, .3, 1); width: min(440px, calc(100vw - 24px)); background: #f4ede0; border: 1px solid rgba(40, 34, 30, .3); border-radius: 6px; padding: 16px; color: #1d1a18; display: grid; gap: 10px; box-shadow: 0 16px 40px rgba(40, 30, 20, .3); font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif; }
+.growp.on { transform: translate(-50%, 0); }
+.growp .gtt { font-size: 17px; letter-spacing: .06em; }
+.growp .gwhy { margin: 0; font-size: 13px; color: #7a6a5a; }
+.growp .gopts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.growp .gopt { display: grid; gap: 4px; justify-items: center; text-align: center; margin: 0; padding: 14px 10px 12px; border-radius: 4px; background: #efe6d4; border: 1px solid rgba(40, 34, 30, .22); color: #1d1a18; cursor: pointer; font: inherit; }
+.growp .gopt:hover, .growp .gopt:focus-visible { background: #e6dcc6; border-color: rgba(40, 34, 30, .5); }
+.growp .gopt b { font-size: 16px; letter-spacing: .12em; }
+.growp .gopt small { color: #5a5048; font-size: 12px; line-height: 1.5; }
+.growp .gic { line-height: 1; }
+.growp .inkch { display: inline-grid; place-items: center; width: 52px; height: 52px; font-style: normal; font-size: 38px; font-weight: 700; color: #1d1a18; font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif; }
+.growp .glater { justify-self: center; margin: 0; background: transparent; }
+/* 第六章 */
+.storyov { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(40, 34, 30, .5); padding: 16px; }
+.storyov .scard { width: min(440px, 92vw); max-height: 86vh; overflow: auto; background: #f4ede0; color: #1d1a18; border-radius: 4px; padding: 24px 22px 18px; display: grid; gap: 10px; box-shadow: 0 18px 50px rgba(0, 0, 0, .35); font-family: 'Noto Serif TC', 'Microsoft JhengHei', Georgia, serif; }
+.storyov small { color: #c03a2b; letter-spacing: .3em; font-size: 12px; }
+.storyov b { font-size: 24px; letter-spacing: .3em; }
+.storyov p { margin: 0; line-height: 1.85; font-size: 15px; opacity: 0; animation: storyIn 1s ease forwards; }
+.storyov .ssign { text-align: right; color: #5a5048; font-size: 14px; }
+.storyov .snext { color: #7a6a5a; font-size: 13px; border-top: 1px solid rgba(40, 34, 30, .2); padding-top: 10px; }
+.storyov .btn { justify-self: center; margin-top: 6px; }
+@keyframes storyIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .storyov p { animation: none; opacity: 1; } .growp { transition: none; } }
